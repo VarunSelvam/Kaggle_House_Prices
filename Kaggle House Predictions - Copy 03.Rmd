@@ -1,0 +1,190 @@
+---
+title: "Kaggle Sale Prices"
+author: "Varun Selvam"
+date: "November 10th, 2023"
+output: html_document:
+  toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE) #Suppress warnings libraries
+```
+
+## Load Libraries
+```{r cars}
+library(dplyr) #load libraries for project
+library(ggplot2)
+library(tidyr)
+library(rpart)
+library(rpart.plot)
+```
+
+## Load Datasets
+```{r pressure, echo=FALSE}
+test <- read.csv("test.csv")
+train <- read.csv("train.csv")
+```
+
+## Identify Top 5 Predictors w/Classification Tree
+```{r}
+train_tree <- train %>%
+  select(-Id) #Classification tree will include ID as a predictor, ID is not needed 
+  
+house_prices_tree <- rpart(formula = SalePrice ~ ., data = train_tree) # Assign tree to a variable titled "income_model".
+house_prices_tree #Display Tree 
+
+```
+The top 5 predictors based of this tree model are: 
+* Overall Quality (Categorical)
+* Neighborhood (Categorical)
+* 1st Floor Sqft (X1stFlSF) (Continuous - Numeric)
+* GrLivArea (Continuous - Numeric)
+* Basement Finished SQF1 (BsmtFinSF1), (Continuous - Numeric)
+
+It should be noted that classification tree models are for classification problems that have a binary discrete outcome. A regression model will be required to model Sales Price, however a Classification Model can be used to see the top 5 predictors.
+
+## Identify Missing Variables, check if any predictors are in the list.
+```{r}
+
+count_missings <- function(x) sum(is.na(x))
+
+train %>% 
+  summarize_all(count_missings) # Handy summarize_all function
+
+```
+##Check if Neighborhood should be a factor
+
+```{r}
+
+train %>%
+  mutate(Neighborhood = factor(Neighborhood)) %>%
+  ggplot(mapping = aes(x = Neighborhood, y = SalePrice)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  labs(title = "Boxplot of Neighborhood vs. SalePrice")
+   #Rotate labels on x-axis, otherwise x-axis is unreadable
+
+ggplot(train, aes(as.character(Neighborhood), SalePrice)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = F) +
+  geom_smooth(se = F, col = 2) + # Local regression named LOESS
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "SalePrice ~ Neighborhood, with linear and local regression")
+  
+lm(SalePrice ~ Neighborhood, data = train) %>% summary() # R-squared .54
+lm(SalePrice ~ factor(Neighborhood), data = train) %>% summary() # .54
+
+```
+
+## Check if overall quality should be a factor
+
+```{r}
+train %>% 
+  ggplot(aes(factor(OverallQual), SalePrice)) +
+  geom_boxplot() +
+  labs(title = "SalePrice ~ OverallQual")
+
+ggplot(train, aes(as.numeric(OverallQual), SalePrice)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = F) +
+  geom_smooth(se = F, col = 2) + # Local regression named LOESS
+  labs(title = "SalePrice ~ OverallQual, with linear and local regression")
+
+lm(SalePrice ~ OverallQual, data = train) %>% summary() # R-squared .62
+lm(SalePrice ~ factor(OverallQual), data = train) %>% summary() # .68
+```
+
+## Make Changes to train dataset
+
+```{r}
+train <- train %>% 
+  mutate(OverallQual = factor(OverallQual)) %>% 
+```
+
+
+## Create training and testing dataset from the Train Dataset
+```{r}
+# Randomly sample 70% of the rows
+set.seed(124)
+index <- sample(x = 1:nrow(train), size = nrow(train)*.7, replace = F)
+
+head(index) # These are row numbers
+
+# Subset train using the index to create train_fold
+train_fold <- train[index, ]
+
+# Subset the remaining row to create validation fold.
+validation_fold <- train[-index, ]
+
+```
+
+## Create Regression Model Based of top 5 predictors
+```{r}
+SalePrice_Model <- lm(SalePrice ~ OverallQual + Neighborhood + X1stFlrSF +
+                      GrLivArea + BsmtFinSF1, data = train_fold)
+
+summary(SalePrice_Model)
+```
+
+In Sample R-squared is .84 which means that this model explains 84% of the variation for the in sample data set.
+
+```{r}
+predictions <- predict(SalePrice_Model, newdata = validation_fold)
+
+# Create functions for calculating RMSE and R-squared (necessary for estimating 
+# out of sample performance)
+
+rmse <- function(observed, predicted) sqrt(mean((observed - predicted)^2))
+
+R2 <- function(observed, predicted){
+  TSS <- sum((observed - mean(observed))^2)
+  RSS <- sum((observed - predicted)^2)
+  1- RSS/TSS
+}
+
+rmse(validation_fold$SalePrice, predictions)
+R2(validation_fold$SalePrice, predictions)
+```
+This model has an out of sample R-Squared of 78% which means that this model explains 78% of the variation in the data.
+
+##Submit to Kaggle
+```{r}
+kaggle_model <- lm(SalePrice ~ OverallQual + Neighborhood + X1stFlrSF +
+                      GrLivArea + BsmtFinSF1, data = train)
+test <- test %>% 
+  mutate(OverallQual = factor(OverallQual))
+
+test %>% 
+  select(OverallQual, Neighborhood, X1stFlrSF, GrLivArea, BsmtFinSF1,) %>% 
+  summarize_all(count_missings) 
+```
+
+```{r}
+test$BsmtFinSF1 <- as.numeric(test$BsmtFinSF1)  # Convert column to numeric
+
+test$BsmtFinSF1 <- replace_na(test$BsmtFinSF1, median(test$BsmtFinSF1, na.rm = TRUE))  # Replace missing values
+
+test %>% 
+  select(OverallQual, Neighborhood, X1stFlrSF, GrLivArea, BsmtFinSF1,) %>% 
+  summarize_all(count_missings)
+
+```
+
+```{r}
+kaggle_predictions <- predict(kaggle_model, newdata = test) # Use the newdata argument!
+
+head(kaggle_predictions)
+
+kaggle_submission <- test %>% 
+  select(Id) %>% 
+  mutate(SalePrice = kaggle_predictions)
+
+# Check
+head(kaggle_submission)
+
+# write to csv
+write.csv(kaggle_submission, "kaggle_submission.csv", row.names = F)
+```
+
+Kaggle Score: 0.16287
+Kaggle Leaderboard Ranking: 3217
