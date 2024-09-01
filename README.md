@@ -4,4 +4,4 @@ For this project, I utilized R to help with predicting the prices of homes in Am
 
 During the course of this project, I had to deal with NA values. To deal with the NA Values, we used imputation or removed the column if too many of the values were missing. (Too many values missing was defined as 60% of greater.) 
 
-Finally, we utilized cross-validation to validate our model and ensure that overfitting was not occuring.
+Finally, I utilized cross-validation to validate our model and ensure that overfitting was not occuring.
