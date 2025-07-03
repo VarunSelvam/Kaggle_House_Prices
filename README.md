@@ -1,7 +1,14 @@
 # Kaggle_House_Prices
 
-For this project, I utilized R to help with predicting the prices of homes in Ames, Iowa. The primary method utilized for this project was Linear Regression. The objective was to get an R-squared above 75% or higher. I again did this project with a group and the new objective was to get an R^2 of 85% or higher.
+For this project, my team utilized R to help with predicting the prices of homes in Ames, Iowa. Several Machine Learning Algorithms were utilized for this project: 
 
-During the course of this project, I had to deal with NA values. To deal with the NA Values, we used imputation or removed the column if too many of the values were missing. (Too many values missing was defined as 60% of greater.) 
+- Nueral Networks
+- Support Vector Machines
+- Multi Linear Regression
+- Penalized Regression
+- PCA
+- Clustering (Data Insights)
+- Random Forest
+- XGboost
 
-Finally, I utilized cross-validation to validate our model and ensure that overfitting was not occuring.
+Grid Search with Hyperparamter Tuning was performed on serveral of these models. The model with the best performance was the Nueral Network with an **R-squared** of __93%__ and an **RMSE of $26,559.73 dollars.
