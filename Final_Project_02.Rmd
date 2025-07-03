@@ -1,0 +1,2410 @@
+---
+title: "Machine Learning Project"
+author: "Ahsan Ahmad, Varun Selvam, Nikita Muddapati"
+date: "2024-12-04"
+output: 
+  html_document:
+    theme: flatly
+    df_print: paged
+    toc: true
+    toc_float:
+      smooth_scroll: true
+execute:
+  include: true
+  eval: true    
+  warning: false
+  message: false
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE) #Suppress warnings when libraries are loaded.```
+
+```
+
+# Load Libraries
+```{r}
+
+pacman::p_load(DDoutlier,tidyverse,glmnet,car,psych,
+               forecast,lmtest,caret,Metrics,rpart,
+               rpart.plot,reshape2,rminer,matrixStats,
+               knitr,e1071,lattice,tictoc,ISLR,dataPreparation,
+               mlbench,ROCR,tidymodels,dbscan,parallel,factoextra,cluster,gridExtra,doParallel,dials)
+
+library(RWeka)
+library(kernlab)
+
+```
+
+# Read in Dataset
+
+```{r}
+
+house_prices <- read.csv("C:\\Users\\User\\Box Sync\\Business Analytics Degree\\Semesters\\Fall Semester 2024\\MKTG 6620\\HW_1\\house-prices-advanced-regression-techniques\\train.csv")
+
+```
+
+
+# Cleaning the Dataset
+
+This dataset has a few issues which must be addressed through cleaning. Outliers must also be addressed. Afterwards, the dataset can be utilized for modelling.
+
+## Address Missing Values
+
+```{r}
+
+# Define function to check %age of NAs in each column
+
+find_na <- function(x) sum(is.na(x))
+
+# Apply function to each column with map()
+missing_values <- map(.x = house_prices, .f = find_na) %>% 
+  unlist() %>% 
+  data.frame()
+
+missing_values %>% 
+  filter(. != 0) %>% 
+  mutate(pctg = ./nrow(house_prices)) %>% 
+  arrange(desc(pctg)) %>% 
+  round(4)
+
+
+```
+
+### Address Columns greater than 90% of NA's
+
+#### Check Levels for Variables
+
+The below code checks the levels for the variables that have more than 90% of their values missing.
+
+```{r}
+
+unique(house_prices$PoolQC)
+unique(house_prices$MiscFeature)
+unique(house_prices$Alley)
+
+```
+
+Per the Kaggle Dictionary, Na for `PoolQC` means that there is no pool. Thus, these NA values can be replaced with "No Pool"
+
+Additionally, per the Kaggle Dictionary, NA for `MiscFeature` means that there is no Miscellaneous Feature in the house. These NA values can also be replaced with "No Misc Feature". 
+
+Finally NA for `Alley` means that there is no Alley Access for that house. Hence NA for this column can also be replaced with "No Alley". 
+
+#### Recode PoolQC
+
+```{r}
+
+# Recoding cols
+
+# Recode NA in FireplaceQu to "No Fireplace"
+house_prices$PoolQC[is.na(house_prices$PoolQC)] <- "No Pool"
+
+# Check that recoding the NA values worked
+unique(house_prices$PoolQC)
+
+
+```
+
+#### Recode MiscFeature
+
+```{r}
+
+# Recode NA in MiscFeature to "No Misc Feature"
+house_prices$MiscFeature[is.na(house_prices$MiscFeature)] <- "No Misc Feature"
+
+# Check that recoding the NA values worked
+unique(house_prices$MiscFeature)
+
+```
+
+#### Recode Alley
+
+```{r}
+
+# Recode NA in MiscFeature to "No Misc Feature"
+house_prices$Alley[is.na(house_prices$Alley)] <- "No Alley"
+
+# Check that recoding the NA values worked
+unique(house_prices$Alley)
+
+```
+
+
+## Address Remaining Missing Values 
+
+```{r}
+
+# use above function again to check %age of remaining columns' NA's (<90%)
+# recode cols again/impute numeric cols with median and categorical cols with mode
+
+missing_values <- map(.x = house_prices, .f = find_na) %>%  
+  unlist() %>% 
+  data.frame()
+
+missing_values %>% 
+  filter(. != 0) %>% 
+  mutate(pctg = ./nrow(house_prices)) %>% 
+  arrange(desc(pctg))  
+
+```
+
+
+#### Analyze Fence Quality
+
+```{r}
+
+unique(house_prices$Fence)
+
+```
+
+The "Fence Quality" is a categorical variable that contains 4 categories: 
+* MnPrv
+* GdWo
+* GdPrv
+* MnWw.
+
+Per the Kaggle Competition Website, this column describes the quality of the fence for a property. The Kaggle Website also states that "NA" represents "No Fence".
+
+Thus, NA can be recoded as "No Fence"
+
+```{r}
+
+# Recode NA in Fence to "No Fence"
+house_prices$Fence[is.na(house_prices$Fence)] <- "No Fence"
+
+# Check that recoding the NA values worked
+unique(house_prices$Fence)
+
+```
+
+Recoding the NA Values was successful. 
+
+#### Analyze Fireplace Qu
+
+`Fireplace Qu` stands for Fireplace Quality and describes the quality of a fireplace. Additionally Kaggle states that NA means that the home does not have a fireplace. 
+
+Thus, any NA values will be recoded to represent "No Fireplace".
+
+```{r}
+# Recode NA in FireplaceQu to "No Fireplace"
+house_prices$FireplaceQu[is.na(house_prices$FireplaceQu)] <- "No Fireplace"
+
+# Check that recoding the NA values worked
+unique(house_prices$FireplaceQu)
+
+```
+
+#### Analyze Lot Frontage
+
+```{r}
+
+# Select only numeric columns
+numeric_data <- house_prices %>%
+  select(-Id,-OverallQual,-OverallCond,-MSSubClass) %>% 
+  select(where(is.numeric))
+
+# Calculate the correlation matrix
+cor_matrix <- cor(numeric_data, use = "complete.obs")
+
+# Extract correlations for LotFrontage
+lotfrontage_correlations <- cor_matrix["LotFrontage", ]
+
+# Display the correlations
+lotfrontage_correlations
+
+```
+
+Lot Frontage does not seem to be strongly correlated with any of the numeric variables. Thus, using a package like Amelia might not be very appropriate. (Amelia would basically create a model that takes the other columns and uses them to predict potential values for the other columns.) 
+
+It should also be noted that although the correlation with the Target Variable `SalePrice` is quite low at .34, it could be still be useful in combination with other variables. 
+
+However in terms of dealing with the NA's, imputation with the median should be fairly reliable. The column is only missing 17.74% of its values. This means that utilizing the median should be reliable since most of the column's values (82.26%) are present. 
+
+```{r}
+
+# Compute the median
+median_lot_frontage <- median(house_prices$LotFrontage,na.rm = TRUE)   # median= 69
+
+median_lot_frontage
+
+# Impute with the median
+house_prices$LotFrontage[is.na(house_prices$LotFrontage)] <- median_lot_frontage
+
+# Check Missing Values
+sum(is.na(house_prices$LotFrontage))
+
+```
+
+#### Analyze all the Garage Variables
+
+The Garage Variables all are missing 81 variables which comprise 5.55% of the dataset: 
+
+* `GarageType`
+* `GarageYrBlt`
+* `GarageFinish`
+* `GarageQual`
+* `GarageCond`
+
+According to Kaggle, NA for `GarageType`, `GarageFinish`, `GarageQual`, `GarageCond` represents "No Garage". This means that the NA value can be recoded as "No Garage" for the above columns. 
+
+NA for "Garage Built" however will be a little tricky since including a number like 0 or -9999 or 1 to represent no Garage may confuse any ensemble models. This is because the model may believe that 1 or -9999 is a valid year.
+
+Thus, to avoid any potential confusion or creating possible outliers like 9999, we will just leave NA in `GarageYrBlt` alone. (We can't replace it with a string like "No Garage" because the column type will change and it'll no longer be numeric.) 
+
+Instead, a new column will be created that more explicitly states whether a house has a garage or not. Thus, a new column will be created wtih "0" representing no garage and "1" representing a garage. (This info can be gleaned from the other Garage Columns but we believe that having an explicit column for Garage will make it easier to assess Garage's influence on price and it can be used to compare houses that don't have garages vs having a garage for clustering as well. (We may do clustering and then run a model on that cluster, so having this column will be helpful for that as well.)
+
+```{r}
+# create a vector to store all the columns
+garage_col <- c("GarageType", "GarageFinish", "GarageQual", "GarageCond")
+
+# Replace NA in specified columns with new value
+house_prices <- house_prices %>% 
+  mutate(across(all_of(garage_col), ~ replace_na(., "No Garage")))
+
+```
+
+The new column `HasGarage` has been created to represent explicitly whether a house has a garage or not.
+
+```{r}
+
+house_prices <- house_prices %>%
+  mutate(HasGarage = ifelse(is.na(GarageYrBlt), "No", "Yes")  # Create a binary indicator for garage presence
+  )
+
+```
+
+
+#### Analyze all the Basement Variables
+
+According to Kaggle, NA for `BsmtExposure`, `BsmtFinType2`, `BsmtQual`, `BsmtCond` and `BsmtFinType1` represents "No Basement". This means that the NA value can be recoded as "No Basement" for the above columns.
+
+They are also all missing roughly the same amount of values in all the columns.
+
+```{r}
+
+# create a vector to store all the columns
+basement_col <- c("BsmtExposure", "BsmtFinType2", "BsmtQual", "BsmtCond","BsmtFinType1")
+
+# Replace NA in specified columns with new value
+house_prices <- house_prices %>% 
+  mutate(across(all_of(basement_col), ~ replace_na(., "No Basement")))
+
+```
+
+#### Analyze all the MasVnr Variables
+
+Kaggle states that if there is no Masonry Veneer for the house, then the value is "None" for the `MasVnrType` variable. This indicates that the variable is genuinely missing values. (i.e any NA values are geniunely missing values and cannot be imputed with "None")
+
+Additionally, if a house does not have a Masonry Veneer, then the `MasVnrArea` is zero. The below code chunk shows this:
+
+```{r}
+
+house_prices %>% 
+  select(MasVnrType,MasVnrArea) %>% # Select the following two columns
+  filter(MasVnrType == "None") %>% # Only select rows where client marked "None".
+  head()
+
+```
+The code shows that everytime `MasVnrType` is None, the `MasVnrArea` variable is Zero. Despite this, there are only 8 values missing in both columns which is less than 1% of the data at 0.54% This is a very small amount which means that imputing with median/mode is appropriate.
+
+
+```{r}
+
+# Define function to find the mode of a character vector
+find_mode <- function(x){
+  table(x) %>% 
+    which.max() %>% 
+    names()
+}
+
+# Compute with the median
+MasVnrType_mode <- find_mode(house_prices$MasVnrType)
+
+MasVnrType_mode
+
+# Impute with the median
+house_prices$MasVnrType[is.na(house_prices$MasVnrType)] <- MasVnrType_mode  # mode = "None"
+
+# Check Missing Values
+sum(is.na(house_prices$MasVnrType))
+
+```
+
+```{r}
+
+# Compute with the median
+median_MasVnrArea <- median(house_prices$MasVnrArea,na.rm = TRUE)  #median = 0
+median_MasVnrArea
+
+# Impute with the median
+house_prices$MasVnrArea[is.na(house_prices$MasVnrArea)] <- median_MasVnrArea
+
+# Check Missing Values
+sum(is.na(house_prices$MasVnrArea))
+
+```
+
+MasVnrType has been successfully imputed with the mode while MasVnrArea has also been successfully imputed with the median.
+
+#### Analyze Electrical Variable
+
+The Electrical Variable is only missing one observation. This missing value can be replaced with the mode since it's a categorical variable.
+
+```{r}
+# Get the mode for electrical
+electrical_mode <- find_mode(house_prices$Electrical)
+
+# Impute with the mode
+house_prices$Electrical[is.na(house_prices$Electrical)] <- electrical_mode
+
+# Check missing values
+sum(is.na(house_prices$Electrical))
+
+```
+
+The imputation was successful, there are no missing values, except for `GarageYrBlt` This however was done on purpose, please see "Analyze all the Garage Variables" for more information.
+
+```{r}
+
+map(.x = house_prices, .f = find_na) %>% 
+  unlist() %>% 
+  data.frame()
+
+```
+
+## Drop ID Column
+
+```{r}
+
+# Drop Id column not needed
+house_prices <- house_prices %>% 
+  select(-Id)
+
+```
+
+The Id Column is dropped since it is just used to identify each individual house. It does not say anything else or reveal any interesting characteristics about the house.
+
+
+## Factor Conversion
+
+```{r}
+
+# Factoring all categorical and numeric variables
+
+# Mutate any character variables into factors
+house_prices <- house_prices %>% mutate_if(is.character, as.factor)
+
+# Numeric Variables which should be factors stored as a vector
+cat_values <- c("OverallQual","OverallCond","MSSubClass", "MoSold")
+
+# Utilize mutate to transform all the columns in the cat_values vector to factors.
+house_prices <- house_prices %>% 
+  mutate(across(all_of(cat_values), as.factor))
+
+# Display the summary of train_clean
+summary(house_prices)
+
+
+```
+
+This code will all the character variables along with some numeric variables to factors.
+
+* `OverallQual` is being converted because the numeric ratings have a categorical values with them. i.e 10 is "very excellent" while 9 is "excellent". Thus to capture these categorical values, `OverallQual` is being converted to a factor. (This info is from the data dictionary on Kaggle.)
+  
+  * Overall Quality rates the overall material and finish of the house.
+
+* `OverallCond` also reflect this with the numeric rating containing categorical information. For instance, a 9 is "excellent" while an 8 is "very good". (This info is from the data dictionary on Kaggle.)
+
+  * Overall Cond rates the overall condition of the house.
+
+* `MSSubclass` also contains categorical information which has been represented as a numeric variable. Thus, to capture this information, this variable will also be converted to a factor. For instance, "20" represents a "1-STORY 1946 & NEWER ALL STYLES"
+
+  * Identifies the type of dwelling involved in a sale.
+  
+* `MoSold` just represents the month that a house was sold. This should be a categorical variable, it makes no sense to calculate the "median" month, etc. There additionally is no meaningful numeric diference between "January" and "February" for instance. These are just names of the months which this variable represents. It has just been created as a numeric column.
+
+## Outliers Analysis
+
+To remove the outliers, the LOF (Local Outlier Factor) algorithm will be utilized. This approach utilizes LOOP (Local Outlier Probability) where it utilizes the LOF Scores to calculate the probability of an observation being an outlier.
+
+Afterwards any observations that have a greater than 75% probability of being an outlier will be removed from the dataset.
+
+```{r}
+
+numeric_columns <- sapply(house_prices, is.numeric) 
+
+house_clean_numeric <- house_prices[, numeric_columns] # subset train_clean using only numeric cols  (33 cols)
+
+house_clean_numeric <- house_clean_numeric %>% select(-GarageYrBlt)
+# Can't have missing values
+
+lof<- sapply(5:10, function(k) LOF(house_clean_numeric,k))
+
+```
+
+This above code calculates 6 LOF Values for each row in the dataset. For instance, for row 1, the chunk will calculate the LOF for 5 neighbors, 6 neighbors, etc. up to 10 neighbors.
+
+```{r}
+
+#calcuate median lof of different neighborhood sizes.
+
+lof<-apply(lof,1,median)
+
+```
+
+The above code then calculates the median LOF score for each row from the 6 LOF scores previously generated for each row.
+
+```{r}
+
+loop<- sapply(5:10, function(k) LOOP(house_clean_numeric,k))
+loop<-apply(loop,1,median)
+
+# Remove observation with LOOP more than .75
+# hpc = house_prices_clean
+hpc <- house_prices[loop <= 0.75, ]
+
+```
+
+A potential issue however that was present in the last approach with utilizing the LOF Algorithm was that the threshold was a little arbitrarily decided. A potential work around to this issue is to utilize LOOP. LOOP utilizes LOF Scores to calculate the probability of an observation being an outlier. Afterwards, any LOOP values that are greater than .75 would be filtered out from the dataset.
+
+This method is more robust then other LOF approaches like arbitrarily selecting threshold based on some guidelines. Additionally, this method calculates the median LOF Score across different number of neighbors which gives a more robust view of an observation’s Local Reachabilty Density and LOF score. (This is because we are taking the median of several LOF Scores as opposed to just one LOF score like in the previous method.)
+
+There is the issue of selecting which probabilty threshold should be selected for determining if something is an outlier. However, the median LOF Scores which are used to calculate the LOOP should provide a better view than just using LOF Scores from a fixed neighbor number. (i.e calculating the LOF Scores from just 6 neighbors for every observation.)
+
+```{r}
+
+row_reduction_02 <- ((1460 - nrow(hpc))/1460) * 100
+
+round(row_reduction_02,2)
+
+nrow(hpc)
+
+ncol(hpc)
+
+```
+
+# Penalized Regression
+
+## Partition the Dataset
+
+```{r}
+
+#Ridge Regression cannot handle missing values, there is one column yr built which has missing values, so this colulmn will be removed.
+hpc_01 <- hpc %>% 
+  select(-GarageYrBlt)
+
+set.seed(100) # Set Seed for reproducibility
+index_row_number_split <- createDataPartition(hpc_01$SalePrice,p=.8,list = FALSE) #Split into 80/20 with 80 in split and 20 in train
+
+
+```
+
+```{r}
+
+# Subset train using the index and assign it to train_fold.
+train_fold <- hpc_01[index_row_number_split, ]
+
+# Subset all remaining rows into the validation fold.
+test <- hpc_01[-index_row_number_split, ]
+
+```
+
+
+### K-Fold Validation Penalized Regression Function
+
+```{r}
+
+perform_kfold_cv <- function(X, y, alpha, lambda, k, seed) {
+  # Ensure reproducibility
+  set.seed(seed)
+  
+  # Create k folds
+  folds <- sample(1:k, size = nrow(X), replace = TRUE)
+  
+  # Initialize vectors to store RMSE and R^2 for each fold
+  cv_rmse <- numeric(k)
+  cv_r2 <- numeric(k)
+  
+  for (i in 1:k) {
+    # Split data into training and validation sets
+    train_idx <- which(folds != i)
+    test_idx <- which(folds == i)
+    
+    X_train <- X[train_idx, , drop = FALSE]  # Subset predictors for training
+    y_train <- y[train_idx]                  # Subset target for training
+    
+    X_test <- X[test_idx, , drop = FALSE]    # Subset predictors for testing
+    y_test <- y[test_idx]                    # Subset target for testing
+    
+    # Train the model on the training fold
+    model <- glmnet(X_train, y_train, alpha = alpha, lambda = lambda)
+    
+    # Predict on the validation fold
+    predictions <- predict(model, newx = X_test)
+    
+    # Calculate RMSE for this fold
+    cv_rmse[i] <- sqrt(mean((y_test - predictions)^2))
+    
+    # Calculate R^2 for this fold
+    ss_total <- sum((y_test - mean(y_test))^2)
+    ss_residual <- sum((y_test - predictions)^2)
+    cv_r2[i] <- 1 - (ss_residual / ss_total)
+  }
+  
+  # Calculate average RMSE and R^2 across all folds
+  mean_rmse <- mean(cv_rmse)
+  mean_r2 <- mean(cv_r2)
+  
+  # Print messages with the metrics
+  cat("Average RMSE across ", k, "-fold cross-validation: ", round(mean_rmse, 2), "\n")
+  
+  cat("Average R^2 across ", k, "-fold cross-validation: ", round(mean_r2, 2), "\n")
+  
+}
+
+```
+
+
+## Ridge Regression
+
+```{r}
+X <- model.matrix(SalePrice ~ ., train_fold)
+y <- train_fold$SalePrice 
+
+cv_ridge <- cv.glmnet(X, y, alpha = 0)  # alpha = 0 for Ridge
+plot(cv_ridge)
+
+```
+Introduced L2 regularization to shrink coefficients of less important features. 
+
+The Optimal λ (left vertical dashed line) is the first vertical dashed line (around log(λ) ≈ 10). This marks the λ value that minimizes the Mean Squared Error. This value of λ balances the trade-off between bias and variance, giving the best model performance.
+
+High MSE after log(λ) ≈ 12: As λ increases beyond the optimal point, the MSE starts increasing, indicating that the model is becoming overly regularized, leading to underfitting.
+
+The plot shows that the model is performing well in finding an optimal λ that minimizes the prediction error. The region around log(λ) ≈ 10 is the best choice for λ, and choosing a value in this region should provide a good balance between bias and variance. 
+
+```{r}
+
+ridge_best_lambda <- cv_ridge$lambda.min
+ridge_model <- glmnet(X, y, alpha = 0, lambda = ridge_best_lambda)
+
+# Displaying ridge model
+coef(ridge_model)
+
+
+```
+
+## Lasso Regression
+
+```{r}
+
+# Lasso Regression
+cv_lasso <- cv.glmnet(X, y, alpha = 1)  # alpha = 1 for Lasso
+plot(cv_lasso)
+
+```
+
+Applied L1 regularization to perform both coefficient shrinkage and variable selection.
+
+The Lasso Regression performs best with a λ value around log(λ) ≈ 6. Beyond this, as λ increases, the model complexity decreases, but at the cost of predictive performance. (Housing price predictions are less accurate). Beyond that, the plot suggests the model is functioning well in terms of balancing sparsity (feature selection) and prediction accuracy.
+
+```{r}
+
+lasso_best_lambda <- cv_lasso$lambda.min
+lasso_model <- glmnet(X, y, alpha = 1, lambda = lasso_best_lambda)
+
+# Displaying Lasso Model
+coef(lasso_model)
+
+```
+
+## Elastic Net Regression
+
+```{r}
+
+# Elastic Net Regression
+cv_elastic_net <- cv.glmnet(X, y, alpha = 0.5)  # alpha = 0.5 for Elastic Net
+plot(cv_elastic_net)
+
+```
+Combined both L1 and L2 penalties to balance the strengths of Ridge and Lasso. Cross-validation was used to select the optimal lambda (penalty) for each model, which helps control overfitting and improves generalization.
+
+The MSE decreases initially as 𝜆increases (moving from left to right) because the model becomes regularized, reducing overfitting.
+
+However, as𝜆increases further, the MSE starts to rise again because the model becomes too simplistic, shrinking the coefficients too much (underfitting).
+
+* The left vertical line (λ_min) represents the value of 
+where the MSE is minimized. This is the most accurate model in terms of cross-validation error.
+
+* The right vertical line (λ_1se) provides a more parsimonious model (fewer predictors) that still performs within one standard error of the minimum MSE. The minimum MSE occurs around Log(λ) ≈ 6.
+
+```{r}
+
+elastic_net_best_lambda <- cv_elastic_net$lambda.min
+elastic_net_model <- glmnet(X, y, alpha = 0.5, lambda = elastic_net_best_lambda)
+
+# Displaying Elastic Net Model
+coef(elastic_net_model)
+
+```
+
+## Model Evaluation (Forecasting)
+
+```{r}
+
+round_metrics <- function(x) {
+  return(lapply(x, function(y) {
+    if (is.numeric(y)) {
+      return(round(y, 2))
+    } else {
+      return(y)
+    }
+  }))
+}
+
+```
+
+### Ridge Regression Model
+
+#### Train Predictions
+
+```{r}
+
+# Create the same train matrix to utilize for making predictions
+newx <- model.matrix(SalePrice ~ ., train_fold)
+
+# Predict
+predictions_ridge_train <- predict(ridge_model, newx = newx)
+
+# Create List of Model Metrics for Regression
+metrics_list <- c("MAE", "RMSE", "R2", "COR","MAPE","RMSPE","RAE", "RRSE")
+
+# Generate Model Metrics
+ridge_train <- mmetric(train_fold$SalePrice,predictions_ridge_train,metrics_list)
+
+round_metrics(ridge_train)
+
+```
+
+#### Test Predictions
+
+```{r}
+
+# Create matrix for the test data, then make predictions
+newx_test <- model.matrix(SalePrice ~ ., test)
+
+# Make Predictions
+predictions_ridge_test <- predict(ridge_model, newx = newx_test)
+
+ridge_test <- mmetric(test$SalePrice,predictions_ridge_test,metrics_list)
+
+round_metrics(ridge_test)
+
+```
+
+The model has comparable performance against the train and test sets. RMSE increases from 21,043.08 to 26,923 dollars which is a 5,880.01 increase. $R^2$ decreases from .96 (train) to .89 (test) which is a 7% decrease. This is farily modes and not too large.
+
+#### 5-fold validation
+
+```{r}
+
+perform_kfold_cv(X = X, y = y, alpha = 0,lambda = ridge_best_lambda, k = 5, seed = 100)
+
+```
+
+Implement cross validation for more rigorous evaluation since, model performance can be dependent on a particular split. Not ah huge decrease from the test set $R^2$ which was .89. RMSE also only increased modestly as well.
+
+### Lasso Regression Model
+
+#### Train Predictions
+
+```{r}
+
+# Generate Predictions
+predictions_lasso_train <- predict(lasso_model, newx = newx)
+
+# Generate Train Metrics
+lasso_train <- mmetric(train_fold$SalePrice,predictions_lasso_train,metrics_list)
+round_metrics(lasso_train)
+
+```
+
+#### Test Predictions
+
+```{r}
+
+# Generate Predictions
+predictions_lasso_test <- predict(lasso_model, newx = newx_test)
+
+# Generate Test Metrics
+lasso_test <- mmetric(test$SalePrice,predictions_lasso_test,metrics_list)
+round_metrics(lasso_test)
+
+```
+
+#### 5-Fold Validation
+
+```{r}
+
+perform_kfold_cv(X = X, y = y, alpha = 0,lambda = lasso_best_lambda, k = 5, seed = 100)
+
+```
+
+### Elastic Net Regression Model
+
+#### Train Predictions
+
+```{r}
+
+# Generate Predictions
+predictions_elastic_train <- predict(elastic_net_model, newx = newx)
+
+# Generate Train Metrics
+elastic_train <- mmetric(train_fold$SalePrice,predictions_elastic_train,metrics_list)
+round_metrics(elastic_train)
+
+```
+
+#### Test Predictions
+
+```{r}
+
+# Generate Predictions
+predictions_elastic_test <- predict(elastic_net_model, newx = newx_test)
+
+# Generate Test Metrics
+elastic_test <- mmetric(test$SalePrice,predictions_elastic_test,metrics_list)
+round_metrics(elastic_train)
+
+
+```
+
+#### 5 Fold Validation
+
+```{r}
+
+perform_kfold_cv(X = X, y = y, alpha = 0.5,lambda = elastic_net_best_lambda, k = 5, seed = 100)
+
+```
+
+
+## Visualizations
+
+### Ridge Regression Model
+
+```{r}
+
+# Create a data frame for plotting
+results_df_1 <- data.frame(Predicted = as.vector(predictions_ridge_test), Actual = test$SalePrice)
+
+# Coefficients plot for Ridge model
+coefficients_ridge <- coef(ridge_model)
+plot(coefficients_ridge, main = "Ridge Coefficients")
+
+```
+
+```{r}
+
+# Predicted vs Actual plot for Ridge model
+ggplot(results_df_1, aes(x = Actual, y = Predicted)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, col = "blue") +
+  ggtitle("Predicted vs Actual on Ridge Regression for Test Data") +
+  xlab("Actual Sale Price") +
+  ylab("Predicted Sale Price")
+
+```
+
+### Lasso Regression Model
+
+```{r}
+
+# Create a data frame for plotting
+results_df_2 <- data.frame(Predicted = as.vector(predictions_lasso_test), Actual = test$SalePrice)
+
+# Coefficients plot for Ridge model
+coefficients_lasso <- coef(lasso_model)
+plot(coefficients_lasso, main = "Lasso Coefficients")
+
+```
+
+```{r}
+
+# Predicted vs Actual plot for Lasso model
+ggplot(results_df_2, aes(x = Actual, y = Predicted)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, col = "blue") +
+  ggtitle("Predicted vs Actual on Lasso Regression for Test Data") +
+  xlab("Actual Sale Price") +
+  ylab("Predicted Sale Price")
+
+```
+
+### Elastic Net Regression
+
+```{r}
+
+# Create a data frame for plotting
+results_df_3 <- data.frame(Predicted = as.vector(predictions_elastic_test), Actual = test$SalePrice)
+
+# Coefficients plot for Ridge model
+coefficients_elastic_net <- coef(elastic_net_model)
+plot(coefficients_elastic_net, main = "Elastic Net Coefficients")
+
+```
+
+```{r}
+
+# Predicted vs Actual plot for Lasso model
+ggplot(results_df_3, aes(x = Actual, y = Predicted)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, col = "blue") +
+  ggtitle("Predicted vs Actual on Elastic Net Regression for Test Data") +
+  xlab("Actual Sale Price") +
+  ylab("Predicted Sale Price")
+
+```
+
+
+# Support Vector Machines
+
+## Create Data Partition
+
+```{r}
+
+# Set seed for reproducibility
+set.seed(100)
+
+# Split the data
+
+trainIndex <- createDataPartition(hpc_01$SalePrice, p = .8, list = FALSE)
+
+trainData <- hpc_01[trainIndex, ]
+testData <- hpc_01[-trainIndex, ]
+
+row_count_train <- nrow(trainData)
+row_count_test <- nrow(testData)
+
+row_count_train
+
+row_count_test
+
+round(row_count_train/nrow(hpc_01),2)
+
+round(row_count_test/nrow(hpc_01),2)
+
+```
+
+
+## SVM using Linear Kernel
+
+The model below will utilize simple-hold out evaluation to first gauge this model’s performance.
+
+```{r}
+
+# Train SVM model with a linear kernel
+tic()
+svm_model_linear <- svm(SalePrice ~ ., data = trainData, kernel = "linear", cost = 1, scale = TRUE)
+toc()
+svm_model_linear
+
+```
+
+
+```{r}
+
+# Make prediction the train data
+predictions_linear_train <- predict(svm_model_linear, newdata = trainData)
+
+# Make predictions on the test data
+predictions_linear_test <- predict(svm_model_linear, newdata = testData)
+
+# Evaluating performance on Train Data
+mmetric(trainData$SalePrice,predictions_linear_train,metrics_list)
+
+# Evaluating performance on Test Data
+mmetric(testData$SalePrice,predictions_linear_test, metrics_list)
+
+```
+
+The comparison of performance metrics between the training and test datasets for the linear kernel SVM model reveals several insights. On the training data, the model achieves a Mean Absolute Error (MAE) of 
+12,026.91 and a Root Mean Squared Error (RMSE) of 21,342.13, with a correlation (COR) of 0.9637 and an 
+$R^2$ of 0.9287. These metrics indicate a strong predictive performance on the training data, with low error values and a high degree of explained variance. However, when evaluated on the test data, the model's performance slightly declines, evidenced by higher error values (MAE of 15,291.70 and RMSE of 22,458.20) and a slightly reduced correlation (0.9519) and $R^2$ (0.9061). This increase in error and decrease in correlation and 
+$R^2$ suggest that the model experiences a modest reduction in predictive accuracy on unseen data, which could point to some degree of overfitting. Nevertheless, the relatively small decline in performance indicates that the linear kernel SVM generalizes reasonably well, but further refinement, such as regularization or feature engineering, could enhance its test set performance and reduce this gap.
+
+
+### Hyper parameter Tuning using Cross Validation
+
+There are numerous hyperparamters that could be utilized to improve the model. It however would be inefficient to go through all the hyperparamters. Thus, grid search will be used to help find the best hyperparameters. It should be noted that the kernel will be kept the same.
+
+```{r}
+
+# Define tuning grid for hyperparameter tuning - different combinations of C
+tune_grid <- expand.grid(C = seq(0.1, 2, by = 0.5))
+
+# Perform Cross-Validation for regression
+svm_tuned_linear <- train(SalePrice ~ ., 
+                          data = trainData, 
+                          method = "svmLinear",
+                          tuneGrid = tune_grid, 
+                          metric = "RMSE", # Use RMSE for regression
+                          trControl = trainControl(method = "cv", number = 5))
+
+# Print the best model and parameters
+print(svm_tuned_linear)
+
+```
+
+The tuned model employs a systematic grid search over a range of hyperparameters (values of C from 0.1 to 2.0) and selects the best model based on the smallest RMSE value. The optimal C value found through this process is 1.6, resulting in an RMSE of 38,424.82, $R^2$ of 0.7783, and MAE of 23,539.75. This indicates a balance between bias and variance, where the model effectively captures the underlying patterns in the data while avoiding overfitting.
+
+
+### Model Plot
+
+```{r}
+# Plot model
+plot(svm_tuned_linear)
+
+```
+
+The plot shows the RMSE score for the model across different C values, where C = 1.6 achieves the lowest RMSE, indicating the best model performance.
+
+
+## SVM using RBF Kernel
+
+```{r}
+# Train SVM model with RBF kernel
+svm_model_rbf <- svm(SalePrice ~ ., data = trainData, kernel = "radial", cost = 1, gamma = 0.1)
+
+svm_model_rbf
+
+```
+
+```{r}
+
+# Make prediction the train data
+predictions_rbf_train <- predict(svm_model_rbf, newdata = trainData)
+
+# Make predictions on the test data
+predictions_rbf_test <- predict(svm_model_rbf, newdata = testData)
+
+# Evaluating performance on Train Data
+mmetric(trainData$SalePrice,predictions_rbf_train,metrics_list)
+
+# Evaluating performance on Test Data
+mmetric(testData$SalePrice,predictions_rbf_test, metrics_list)
+
+```
+
+Let's compare the result with the simple linear kernal SVM we trained before.
+
+The comparison between the performance of SVM models with linear and radial kernels on both the training and test datasets highlights the underperformance of the radial kernel in this specific regression task.
+
+**Linear Kernel:**
+For the train dataset, the linear kernel achieves a low MAE of 12,026.91 and RMSE of 21,342.13, with a high R² value of 0.9287 and a strong correlation (COR) of 0.9637. On the test dataset, while performance slightly declines, the model still maintains respectable accuracy, with an MAE of 15,291.70, RMSE of 22,458.20, R² of 0.9061, and COR of 0.9519. These metrics suggest that the linear kernel SVM generalizes well and provides robust predictions on unseen data.
+
+**Radial Kernel:**
+The radial kernel, on the other hand, performs significantly worse. On the train dataset, it has a much higher MAE (13,993.60) and RMSE (37,485.72) compared to the linear kernel, along with a lower R² (0.8266) and COR (0.9092). This indicates that the model struggles to fit the training data effectively, likely due to the increased complexity of the radial basis function. The performance on the test dataset deteriorates further, with an MAE of 33,418.74 and RMSE of 51,593.48, accompanied by a very low R² (0.5547) and COR (0.7448). These results suggest that the radial kernel SVM not only overfits the training data but also generalizes poorly, as evidenced by its significant error and reduced correlation on the test data.
+
+**Conclusion:**
+The linear kernel outperforms the radial kernel in this regression task, providing better accuracy, robustness, and generalization. While radial kernels are powerful for capturing non-linear relationships, their complexity needs careful tuning and justification based on the dataset's characteristics. In this case, the linear kernel is the more appropriate choice.
+
+### Hyper Parameter Tuning using Cross Validation
+
+```{r}
+
+# Define tuning grid for tuning hyper parameters - different combinations of C and sigma
+
+tune_grid_rbf <- expand.grid(sigma = c(0.01, 0.05, 0.1), C = c(0.1, 1, 10))
+
+# Perform Cross-Validation for regression
+svm_tuned_rbf <- train(SalePrice ~ ., 
+                          data = trainData, 
+                          method = "svmRadial",
+                          tuneGrid = tune_grid_rbf, 
+                          metric = ("RMSE"), # Use RMSE for regression
+                          trControl = trainControl(method = "cv", number = 5))
+
+# Print the best model and parameters
+print(svm_tuned_rbf)
+
+```
+
+As predicted from the comparison in between the simple Linear and simple Radial kernal SV Models, the radial kernel is not getting the variance at all as can be seen from the extremely low $R^2$ values above.
+
+### Model Plot
+
+```{r}
+# Plot model 
+plot(svm_tuned_rbf)
+
+```
+
+## K-fold validation
+
+Since the linear kernel did the best, this model will be evaluated on the entire dataset to further assess performance. The model did use cross-validation to tune the hyperparmaters, however this was only with the train set. 
+
+Since, we have now found the best model, we are going to assess it's performance on the entire dataset. There will be no hyper-paramter tuning of the SVM model. This is just to assess its performance as previously stated.
+
+### Create k-fold function that accepts custom parameter settings
+
+```{r}
+
+cv_function_ksvm <- function(df, target, nFolds, seedVal, metrics_list, kern, c)
+{
+# create folds using the assigned values
+
+set.seed(seedVal)
+folds = createFolds(df[,target],nFolds)
+
+# The lapply loop
+
+cv_results <- lapply(folds, function(x)
+{ 
+# data preparation:
+
+  test_target <- df[x,target]
+  test_input <- df[x,-target]
+  
+  train_target <- df[-x,target]
+  train_input <- df[-x,-target]
+   pred_model <- ksvm(train_target ~ .,data = train_input,kernel=kern,C=c)  
+  pred <- predict(pred_model, test_input)
+  return(mmetric(test_target,pred,metrics_list))
+})
+
+cv_results_m <- as.matrix(as.data.frame(cv_results))
+cv_mean<- as.matrix(rowMeans(cv_results_m))
+cv_sd <- as.matrix(rowSds(cv_results_m))
+colnames(cv_mean) <- "Mean"
+colnames(cv_sd) <- "Sd"
+kable(t(cbind(cv_mean,cv_sd)),digits=2)
+}
+
+
+```
+
+### Run k-fold function
+
+```{r}
+
+cv_function_ksvm(hpc_01,79,5,100,metrics_list = metrics_list,"vanilladot",1.6)
+
+```
+
+Function used a slightly different ksvm algorithm, however the results are still the same and the algorithm still uses the linear kernel.
+
+## Simple hold out evaluation for reference
+
+We'll also do simple hold out evaluation for reference, however the k-fold validation still remains the most robust method of validation since it does not depend on a particular split.
+
+```{r}
+
+#Create the best model
+
+best_model_ksvm <- ksvm(SalePrice ~ . , data = trainData,kernel = "vanilladot", C = 1.6)
+
+best_model_ksvm_trainpred <- predict(best_model_ksvm,newdata = trainData)
+
+best_model_ksvm_testpred <- predict(best_model_ksvm, newdata = testData)
+
+mmetric(trainData$SalePrice,best_model_ksvm_trainpred,metrics_list)
+
+mmetric(testData$SalePrice, best_model_ksvm_testpred,metrics_list)
+
+```
+
+## Visualization of Best Model's Performance
+
+Shows how well the model performs on the test data.
+
+```{r}
+
+# Create a dataframe with actual and predicted values
+results_df <- data.frame(
+  Actual = testData$SalePrice,
+  Predicted = best_model_ksvm_testpred
+)
+
+# Plot Actual vs Predicted
+ggplot(results_df, aes(x = Actual, y = Predicted)) +
+  geom_point(color = "blue", alpha = 0.5) +  # Scatter plot points
+  geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") +  # Perfect fit line
+  labs(
+    title = "Actual vs Predicted Values",
+    x = "Actual Sale Price",
+    y = "Predicted Sale Price"
+  ) +
+  theme_minimal()
+
+
+```
+
+This model is doing a decent job with most of the points fairly close to the line. There are only a few points which deviate a lot from the line.
+
+## Limitations and Robustness Checks for SVM
+
+**Limitations:**
+
+Model interpretability: While SVMs, especially with an RBF kernel, can be powerful classifiers, they are often harder to interpret than simpler models like logistic regression. The decision boundary in a higher-dimensional space is not easily interpretable, making it harder to provide actionable insights into why certain customers are flagged as likely to default.
+
+Overfitting risk: Even though cross-validation was applied, the risk of overfitting still exists, particularly in models with a high number of support vectors (as seen in the RBF kernel). This overfitting could lead to poor generalization when applied to new data.
+
+**Robustness Checks:**
+
+Cross-validation (5-fold): To ensure model stability, 5-fold cross-validation was applied during hyperparameter tuning for both the linear and RBF SVM models. This provided more reliable estimates of model performance by reducing the variance that can arise from a single train-test split.
+
+Grid search for hyperparameter tuning: Extensive grid search was conducted to identify the best values for C (regularization parameter) in both models and sigma (kernel coefficient) for the RBF kernel. This ensures that the models were fine-tuned and optimized for the specific dataset.
+
+# XGBoost
+
+## Modeling
+
+### Split Data into Train and Test Groups
+
+```{r}
+
+set.seed(123)
+house_prices_rn <- initial_split(hpc_01, prop = 0.8,
+strata = SalePrice)
+
+HousePrice_train <- training(house_prices_rn)
+HousePrice_test <- testing(house_prices_rn)
+
+
+```
+
+### Grid Search
+
+```{r}
+# Preprocessing with a Recipe
+rec_HousePrice <- recipe(SalePrice ~ ., data = HousePrice_train) %>%
+  step_dummy(all_nominal_predictors())     #dummify all numeric cols for modelling
+
+```
+
+### Define the Boosted Tree Model with Adjustable Hyperparameters
+
+```{r}
+
+model_HousePrice <- boost_tree(
+  trees = tune(),         # Number of trees in the ensemble
+  tree_depth = tune(),    # Maximum depth of each tree
+  learn_rate = tune(),    # Learning rate
+  mtry = tune(),          # Number of predictors to sample at each split
+  min_n = tune(),         # Minimum number of data points in a node
+  loss_reduction = tune(),# Minimum loss reduction for a split
+  sample_size = tune()    # Proportion of data for each tree
+) %>%
+set_engine("xgboost", verbosity = 0) %>%   
+set_mode("regression")
+
+
+model_HousePrice
+
+```
+
+### Create Hyperparameter Grid for Tuning
+
+```{r}
+
+# Define the hyperparameter grid
+hyper_grid <- grid_random(
+  trees(range = c(2, 500)),             # Number of trees in the ensemble
+  tree_depth(range = c(2, 10)),          # Maximum depth of each tree
+  learn_rate(range = c(0.01, 0.3)),      # Learning rate
+  finalize(mtry(), HousePrice_train),    # Number of predictors to sample at each split
+  min_n(range = c(2, 10)),               # Minimum number of data points in a node
+  loss_reduction(range = c(0, 3)),       # Minimum loss reduction for a split
+  sample_size = sample_prop(c(0.6, 0.9)),  # Proportion of data for each tree
+  size = 200                            
+)
+
+```
+
+
+### Perform 3-fold Cross Validation
+
+```{r}
+
+HousePrice_folds <- vfold_cv(HousePrice_train, v = 3)
+
+```
+
+### Define Workflow
+
+```{r}
+
+# Combine model specification and recipe into a single workflow for streamlined tuning and evaluation
+
+HousePrice_wf <- workflow() %>%
+add_model(model_HousePrice) %>%
+add_recipe(rec_HousePrice)
+
+# See how many cores are available on local machine
+num_cores <- detectCores()
+num_cores
+
+```
+
+## Hyperparameter Tuning with Grid Search
+
+```{r}
+
+# Hyperparameter Tuning with Grid Search
+doParallel::registerDoParallel(cores = num_cores) 
+
+# Run the tuning process with both rmse and rsq metrics
+set.seed(1234)
+HousePrice_tune <- HousePrice_wf %>%
+  tune_grid(
+    resamples = HousePrice_folds,
+    grid = hyper_grid,
+    metrics = metric_set(rmse, rsq)  # Include both rmse and rsq
+  )
+
+# Stop parallel processing
+doParallel::stopImplicitCluster()
+# Collect metrics from the tuning results
+HousePrice_metrics <- HousePrice_tune %>% 
+  collect_metrics() %>%
+  pivot_wider(names_from = .metric, values_from = mean)
+
+# Filter rows with non-missing values for rmse and rsq separately
+HousePrice_rmse <- HousePrice_metrics %>%
+  filter(!is.na(rmse)) %>%
+  arrange(rmse) %>%
+  head(1) # Select the model with the lowest RMSE
+
+HousePrice_rsq <- HousePrice_metrics %>%
+  filter(!is.na(rsq)) %>%
+  arrange(desc(rsq)) %>%
+  head(1) # Select the model with the highest R²
+
+# Print the metrics and the best models for rmse and rsq
+
+print(HousePrice_rmse)
+
+
+print(HousePrice_rsq)
+```
+
+Aggregate results and select the best-performing model based on low RMSE and high R², balancing accuracy and predictive power.
+
+```{r}
+
+best_model_rmse <- HousePrice_tune %>% 
+  select_best(metric = "rmse")
+
+best_model_rmse
+
+best_model_rsq <- HousePrice_tune %>% 
+  select_best(metric = "rsq")
+
+best_model_rsq
+
+```
+
+## Evaluate on Test Dataset
+
+```{r}
+
+final_workflow_rmse <-
+HousePrice_wf %>%
+finalize_workflow(best_model_rmse)
+
+final_workflow_rsq <-
+HousePrice_wf %>%
+finalize_workflow(best_model_rsq)
+
+
+final_fit_rmse <-
+final_workflow_rmse %>%
+last_fit(split = house_prices_rn)
+
+final_fit_rmse %>%
+collect_metrics() %>% 
+    mutate_if(is.numeric, round, 2)
+
+final_fit_rsq <-
+final_workflow_rsq %>%
+last_fit(split = house_prices_rn)
+
+final_fit_rsq %>%
+collect_metrics() %>% 
+    mutate_if(is.numeric, round, 2)
+
+
+```
+
+
+This is a good model, the model is not overfitting and generalizing well to new data. A increase from 77% to 80% is really good in R^2. The RMSE has also decrease drastically as well from 38,938 dollars to $34,834 dollars. Training metrics (from cross-validation) show high R² and low RMSE, which can also be seen in the performance on the test.
+
+### Graphs
+
+```{r}
+
+library(DALEXtra)
+
+model_fitted <- final_workflow_rsq %>%
+fit(data = HousePrice_train)
+
+explainer_rf <- explain_tidymodels(model_fitted,
+data = HousePrice_train[,-79],
+y = HousePrice_train$SalePrice,
+type = "pdp",verbose = FALSE)
+
+garagecars_comp <- model_profile(explainer_rf,
+variables = "GarageCars",
+groups = "Neighborhood",N=NULL)
+
+# Plotting the variable profile
+plot(garagecars_comp)
+
+```
+
+## Assumptions, Limitations and Robustness Checks for XGBoost (Boosting)
+
+**Assumptions**
+
+The primary assumption was that the relationship between the predictors and the target variable is non-linear.
+We also assumed that there is no significant multicollinearity among the predictors or with the target variable.
+The data was expected to be unnormalized and potentially skewed, as XGBoost can handle skewed data effectively by focusing on regions where errors are high.
+Certain missing values were assumed to be managed automatically by XGBoost.
+
+**Limitations**
+
+The dataset used for this analysis is limited to one location, so generalization to other regions might not be straightforward.
+
+Xgboost being a complex and robust model, is less interpretable than simpler linear models, making it harder to directly understand the impact of individual features on predictions.
+
+As observed in few results, the model might show signs of overfitting, which indicates that it may not generalize well to new data without additional tuning or regularization.
+
+The dataset is limited and may not capture external causal features affecting house prices, such as economic conditions or neighborhood developments, which may limit the model’s predictive scope.
+
+**Robustness checks:**
+
+A grid search was conducted to identify optimal parameters, followed by a 3-fold cross-validation. The xgboost itself is robust, but further checks were performed by re-evaluating the best parameters and refining the model through a finalized workflow.
+
+3-fold cross validation was performed on the best model by collecting additional metrics such as R-squared, MAE (Mean Absolute Error), and MAPE (Mean Absolute Percentage Error) apart from RMSE (Root Mean Squared Error). Finally, model performance was compared and assessed with the test set to check for generalizability, although the additional cross-validation check did not show proving results.
+
+Our outcome has been affected by the cleaning decisions that we have used when cleaning the data. There are numerous ways and approaches to cleaning the data. For instance, we did not consider low-variance columns and imputed missing values for a with median/mode for a few columns which may introduce biases if the missing values are not random. (Based on our analysis for some of the columns like Lot Frontage, they appeared random, but this could not be the case. There was no strong evidence or documention to suggest that missing values conveyed something else like with the other variables like Fireplace Qu where missing values mean that there is no fireaplce.)
+
+Additionally, we utilized simple imputation as opposed to utilizing a more complicated package like MICE. It is possible that our results would change if we had decided to take another approach.
+
+Likewise, we adopted a very conservative approach with outliers since some extreme observations may be valid observations. This however will cause the residuals to increase and consequently any additional regression tree will work harder to correct for these larger residuals. This can consequently increase in sightly more overfitting. This issue however was avoided by hyperparameter tuning like reducing the tree depth for instance to 1.
+
+We also created another column that was originally not apart of the dataset to explicitly record whether a house had a garage or not. Although this column ultimately didn’t end up being important, it’s still another column that XGboost must decide whether to keep or drop when making predictions.
+
+# Principal Component Analysis (PCA)
+
+## Binning the SalePrice Variable
+
+```{r}
+
+# Display the structure of the data
+
+hp <- hpc_01
+
+
+#Handle Target Variable: create 10 bins 
+bin_breaks <- seq(min(hp$SalePrice, na.rm = TRUE),  #find min price
+                  max(hp$SalePrice, na.rm = TRUE),  #find max price
+                  length.out = 11)      # 11 values, creating 10 equal intervals (bins) 
+
+bin_breaks
+
+# Create separate column for binned SalePrice
+hp <- hp %>%
+  mutate(SalePrice_Bin = cut(SalePrice, breaks = bin_breaks, include.lowest = TRUE, labels = FALSE)) %>%
+  mutate(SalePrice_Bin = as.factor(SalePrice_Bin))
+
+# Remove main SalePrice column 
+hp <- hp %>%
+  select(-SalePrice)
+
+# Check the distribution of binned SalePrice: 
+table(hp$SalePrice_Bin)
+
+#check structure of binned SalePrice
+summary(hp$SalePrice_Bin)
+
+str(hp$SalePrice_Bin)
+
+```
+
+We do not use any dependent variables in exploratory analysis methods. Remove the dependent variable or treat it as an independent categorical variable. Use bin breaks to categorize the SalePrice values into bins (low, medium, high price houses). The majority of the data points fall into bins 2 and 3, indicating that most houses have a low SalePrice, also indicating right skewed distribution. The higher bins (7 to 10) have very few observations, suggesting that very few houses have too expensive prices.
+
+
+## Standardize the Data
+
+```{r}
+
+# Standardize numeric columns for mean =0 , sd = 1
+
+scales <- build_scales(hp, verbose = TRUE)
+
+hp <- fast_scale(hp, scales = scales, verbose = TRUE)
+
+```
+
+Standardization ensures that all features contribute equally, preventing features with larger scales from dominating the analysis. The fastScale function quickly scales the numeric columns.
+
+## Covariance Matrix
+
+```{r}
+
+# Handle NA's
+
+library(data.table)
+
+sum(is.na(hp))
+
+# Impute NA's with column median
+hp_num <- lapply(hp, function(x) {
+  if (is.numeric(x)) {
+    x[is.na(x)] <- median(x, na.rm = TRUE)
+  }
+  return(x)
+})
+
+sum(is.na(hp_num))
+
+# Convert to data frame
+
+hp_num <- as.data.table(hp_num)
+
+
+# Filter only numeric columns using .SD
+hp_num <- hp_num[, .SD, .SDcols = sapply(hp_num, is.numeric)] 
+
+# Check the structure of the cleaned numeric data
+str(hp_num)                                         # 32 num cols
+
+#covariance matrix
+cov_matrix <- cov(hp_num)  
+
+# Display  matrix
+print(round(cov_matrix, 3))
+
+```
+
+The covariance matrix captures correlation between the features. Large positive values indicate strong positive relationships, while large negative values indicate strong negative relationships. Zero correlation indicates no observed relationship.
+
+## Perform PCA
+
+```{r}
+
+# Compute Eigen values and vectors to identify PC's
+
+# Perform Eigen decomposition
+
+eigen_result <- eigen(cov_matrix)
+
+eigenvalues <- eigen_result$values
+
+eigenvectors <- eigen_result$vectors
+
+length(eigenvalues)          # 33 PC's
+
+# Variance explained by each PC
+variance_explained <- round(eigenvalues / sum(eigenvalues), 3)
+cumulative_variance <- cumsum(variance_explained)
+
+# Display the cumulative variance
+print(cumulative_variance)
+
+```
+
+The eigenvalues indicate the amount of variance captured by each principal component. The eigenvector indicates the direction of the component. Cumulative variance helps us decide how many PC’s to retain. The first 16 PC’s explain 82% variance in the data, and hence we retain these and discard the remaining ones.
+
+```{r}
+
+# Transform data using top PC's
+
+# Convert to matrix for multiplication
+house_data_matrix <- as.matrix(hp_num)
+
+# Use first 16 PC's
+pca_transformed <- house_data_matrix %*% eigenvectors[, 1:16]
+
+# Convert to a data frame for easier handling
+pca_df <- as.data.frame(pca_transformed)
+colnames(pca_df) <- paste0("PC", 1:16)
+
+# Display the head of the PCA-transformed data
+head(pca_df)
+
+```
+
+The new dataset, pca_df, contains the transformed linear combinations (PC1, PC2,..PC16) in lower-dimensional space, that represents the original data in reduced columns and complexity, while preserving most of the variance in information. The scores are the result of multiplying the standardized data correlation matrix by the 32 eigenvectors or just the first 16 in this case. For instance, the first column(PC1), second column(PC2) and the third column(PC3) have a negative influence or correlation on the first observation. This also means that there are 16 axes(x,y,z..so on) and the first data point’s transformed coordinates are (-1.33,-0.16,-1.41,…,0.12).
+
+## Check for Correlation
+
+```{r}
+
+# Calculate the correlation matrix
+
+round(cor(pca_df),3)
+
+```
+
+Since principal components are orthogonal to each other, they are uncorrelated with any other principal component except itself.
+
+
+# K-Means Clustering
+
+Performing K-Means clustering on the pca dataset and evaluate using Silhouette Score and Elbow Method.
+
+```{r}
+
+scaled_data <- hp_num
+
+# Convert list to data frame
+scaled_data <- as.data.frame(scaled_data)
+
+# Checking for missing or infinite values in the dataset
+any(is.na(scaled_data))     # Returns TRUE if there are any NAs
+
+# Removing rows with NA values
+scaled_data <- na.omit(scaled_data)  # Removes rows with NA values
+
+library(cluster)
+
+# Compute gap statistic to find the optimal number of clusters
+gap_stat <- clusGap(scaled_data, FUN = function(x, k) kmeans(x, centers = k, nstart = 25, iter.max = 100), K.max = 10, B = 50)
+fviz_gap_stat(gap_stat) +
+  labs(title = "Gap Statistic for Optimal Clusters")
+
+```
+
+## Visualizing Clusters
+
+```{r}
+
+# Perform K-Means Clustering with number of clusters/centers as 5 determined above by elbow method
+kmeans_model <- kmeans(scaled_data, centers = 5, nstart = 25)
+
+scaled_data <- scale(scaled_data)
+
+library(factoextra)
+library(ggplot2)
+
+# Perform PCA on the scaled dataset
+pca_result <- prcomp(scaled_data, center = TRUE, scale. = TRUE)
+
+# Visualize clusters using PCA
+fviz_cluster(kmeans_model, geom = "point", data = pca_result$x[, 1:2]) +
+  labs(title = "Cluster Plot (Using PCA)", x = "PC1", y = "PC2") +
+  theme_minimal()
+
+```
+
+```{r}
+
+# Recompute silhouette scores with the optimal clusters
+silhouette_score <- silhouette(kmeans_model$cluster, dist(scaled_data))
+
+# Visualize silhouette scores
+fviz_silhouette(silhouette_score) +
+  labs(title = "Silhouette Plot (Improved)") +
+  theme_minimal()
+
+```
+
+In this section we are only using the first two dimensions of the PCA dataset to get a cluster plot for K-Means clustering that is less scattered and more visually interpretative. In particular, the Silhouette Plot (Improved) shows how each cluster’s value for the Silhouette Score varies along the dataset/observations while the distances from the centroid for each point can also be seen from the cluster_summary’s summary. From the Silhouette Plot (Improved) it can be seen that the width has gone close to 0.30 for some points and it is negative only for the 3rd and 5th cluster at the end.
+
+### Extracting Important Features from Clusters
+
+```{r}
+
+centers <- kmeans_model$centers
+
+# Calculate the range (max - min) for each feature
+feature_ranges <- apply(centers, 2, function(x) max(x) - min(x))
+
+# Sort the features by their range (descending order)
+feature_ranges_sorted <- sort(feature_ranges, decreasing = TRUE)
+
+feature_ranges_sorted
+
+```
+
+The code above shows which features vary the most between clusters. Features that vary the most have the biggest influence in differentating between clusters. In the context of the Ames, Iowa dataset, this means that  `KitchenAbvGr`, `XLstFlrSF`, and `TotalBsmtSF` play the biggest influences in differentiating clusters.
+
+#### Visualization of some of the most important features
+
+```{r}
+
+# Convert the cluster centers to a data frame for easier visualization
+centers_df <- as.data.frame(centers)
+
+# Create a bar plot of the feature ranges across clusters
+library(ggplot2)
+
+centers_df$Feature <- rownames(centers_df)
+centers_df_long <- reshape2::melt(centers_df, id.vars = "Feature")
+
+ggplot(centers_df_long, aes(x = Feature, y = value, fill = variable)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Cluster Centers for Each Feature", x = "Feature", y = "Cluster Center Value") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  scale_fill_brewer(palette = "Set1")
+
+```
+
+This graph helps to visualize the most important features of the clusters. A larger bar in either direction indicates that the feature plays an very influential role in differentiating the clusters. The bars that are colored represent the largest difference. In the context of Ames, Iowa, the basement variables followed and "Lot" variables have a big influence. An interesting thing is that all these variables describe area in some form or other which suggests that "area" has an influence on the clusters. After that "YearRemodAd" and "Year Built" have an influence which suggests that the age of the home and rennovating the home play another influence in the clusters.
+
+# Artificial Neural Networks
+
+## Partition Dataset
+
+```{r}
+
+# Designate a shortened name MLP for the MultilayerPercentron ANN method in RWeka
+MLP <- make_Weka_classifier("weka/classifiers/functions/MultilayerPerceptron")
+
+# Partititon Dataset via 80/20 split
+set.seed(100)
+row_indices <- createDataPartition(hpc$SalePrice,p=0.8,list=FALSE)
+
+# Assign rows to train and test set respectively 
+train_set <- hpc_01[row_indices,] # 80% of data should be in train
+test_set <- hpc_01[-row_indices,] # 20 % of data should be in test
+
+nrow(train_set) # Display Number of rows
+
+nrow(test_set) # Display Number of rows
+
+total_rows <- nrow(train_set) + nrow(test_set)
+total_rows
+
+```
+
+The partition is successful, the number of rows from the train set (1153) and the test set(286) is equal to 1439 rows.
+
+## Set up Cores
+
+```{r}
+
+num_cores <- detectCores()
+num_cores <- num_cores - 1 
+
+```
+
+Cores will be setup to help with processing models faster.
+
+## First Model
+
+```{r}
+
+tic()
+doParallel::registerDoParallel(cores = num_cores) 
+ANN_00 <- MLP(SalePrice ~ . , data = train_set)
+toc()
+
+```
+
+
+### Generate Predictions and Metrics
+
+```{r}
+
+# Generate Predictions
+#tr = train
+ANN_00_train <- predict(ANN_00,newdata = train_set)
+# te = test
+ANN_00_test <- predict(ANN_00, test_set)
+
+# In the Weka model, there are default paramters which are list down below
+#l <- 0.3 - learn rate
+#m <- 0.2 - momentum
+#n <-500 - number of epochs/passes
+#h <- 'a' - #The hidden nodes to be created on each layer:
+  # an integer, or the letters 'a' = (# of attribs + # of classes) / 2, 
+  #'i' = # of attribs, 'o' = # of classes, 't' = (# of attribs + # of classes)
+  # default of H is 'a'.
+
+```
+
+
+### Train Metrics
+
+```{r}
+
+ANN_00_tr_met <- mmetric(train_set$SalePrice,ANN_00_train,metric = metrics_list)
+round_metrics(ANN_00_tr_met)
+
+```
+
+The model seems to be doing good on the train set with an $R^2$ of 97%. This means that the model is able to explain 97% of the variation within the data.
+
+The RMSE also seems fairly decent at 18087.08, dollars. This means that the model's predictions are of on average by 18087.08 dollars.
+
+
+### Test Metrics
+
+```{r}
+
+ANN_00_te_met <- mmetric(test_set$SalePrice,ANN_00_test,metric = metrics_list)
+round_metrics(ANN_00_te_met)
+
+```
+
+It appears that the model is over-fitting when it's cross-validated with the test set. For instance, $R^2$ sees a large decrease of 17% from the train to the test set. (train_set $R^2$: 97%, test_set $R^2$: 80%)
+
+The RMSE however sees a large increase of 19,413.37 dollars from the train to the test sets:
+
+-   train_set RMSE: 18087.08
+
+-   test_set RMSE: 37500.45
+
+This means that the model is picking up on noise in the data and is very complicated. A potential reason could be that the model has 171 hidden nodes on 1 layer.
+
+## Second Model
+
+```{r}
+
+# These are the default values for MLP, except for h
+l <- 0.3
+m <- 0.2
+n <-500
+h <- '86' # Split the number of hidden nodes by half (171/2)
+# 86 means 1 layer with 86 nodes
+
+tic()
+doParallel::registerDoParallel(cores = num_cores) 
+ANN_02 <- MLP(SalePrice ~ . , data = train_set,control= Weka_control(L = l, M = m, N = n, H = h))
+toc()
+
+summary(ANN_02)
+
+
+```
+
+Since the first model moderately overfit, we'll attempt to simplify this model by reducing the number of nodes on the hidden layer. We can do this by cutting the number of nodes in half. If one looks at the first model there were 171 nodes, so we'll cut this in half and train the model.
+
+### Generate Predictions and Train Metrics
+
+```{r}
+
+ANN_02_train <- predict(ANN_02,newdata = train_set)
+ANN_02_test <- predict(ANN_02,newdata= test_set)
+
+ANN_02_tr_met <- mmetric(train_set$SalePrice,ANN_02_train,metric = metrics_list)
+round_metrics(ANN_02_tr_met)
+
+
+```
+
+### Test Metrics
+
+```{r}
+
+ANN_02_te_met <- mmetric(test_set$SalePrice,ANN_02_test,metric = metrics_list)
+round_metrics(ANN_02_te_met)
+
+```
+
+Reducing the nodes by half on the hidden layer has caused the model to overfit even more severely.
+
+This model's RMSE is:
+
+-   train_set RMSE: 14404.63
+
+-   test_set RMSE: 43047.93
+
+-   difference: 28,643 dollars
+
+The RMSE values are much higher than the first model's RMSE Values which
+are listed down below for reference.
+
+First model's RMSE:
+
+-   train_set RMSE: 20666.28
+
+-   test_set RMSE: 35954.44
+
+-   difference: 15,288 dollars
+
+Additionally the $R^2$ on the first model was:
+
+-   train $R^2$: 96%
+
+-   test $R^2$: 82%
+
+-   difference: 14%
+
+$R^2$ on second model for train and test:
+
+-   train $R^2$: 98%
+
+-   test $R^2$: 75%
+
+-   difference: 23%
+
+These metrics indicate that the number of nodes should not be reduced so drastically since it causes a large decline in model performance. The model actually overfits more.
+
+## Grid Search
+
+It's quite apparent based of the previous neural networks that there are several different hyper-parameters from the Learn and Momentum Rates to the number of hidden nodes. It would take an incredibly long time to experiment with all of these hyper-parameters to find a model that is generalizable.
+
+Some of the hyper-parameters cause the model to severely underfit while other hyper-parameters cause the model to overfit.
+
+It's also very computationally expensive to experiment and select the model with the best hyper-parameters. Thus a more efficient method is required to find a model that generalizes well to new data and does not or underfit.
+
+This method is Grid Search which we can use to find a model that
+generalizes well to new data. Grid-Search will search through various hyperparameter combinations, till it finds the best model based on a metric that we specify.
+
+### AVNET
+
+We'll try AVNET with the decay parameters to see if the model
+performance can be improved. The decay parameters act as regularization
+a parameter to prevent overfitting.
+
+The implementation of AVNET also involves grid search.
+
+```{r}
+
+train_predictor <- train_set[,-79] # SalePrice is col 80 in data-set
+train_outcome <- train_set [,79] 
+
+test_predictor <- test_set[,-79]
+test_outcome <- test_set[,79]
+
+
+ctrl <- trainControl(method = "repeatedcv",   # cross-validation
+                     number = 5,               # 5 folds
+                     repeats = 5,              # 5 repetitions
+                     savePredictions = "all"   # Save all predictions to help with diagnostics
+)
+
+avnnetGrid <- expand.grid(decay = c(.001,.005),
+size = c(1:6),
+bag = FALSE
+)
+
+tic()
+doParallel::registerDoParallel(cores = num_cores) 
+avnnet_fit <- train(train_predictor, train_outcome,
+method = "avNNet",
+tuneGrid = avnnetGrid,
+trControl = ctrl,
+#preProc = c("center", "scale"),
+trace = FALSE,
+metric= "RMSE",
+allowParallel=TRUE,
+maxit = 100)
+toc()
+
+
+```
+
+This grid search was alright however the model is unable to perform a more complex grid search with more nodes. (If we try a size of 10-20, the algorithm starts to crash)
+
+```{r}
+
+plot(avnnet_fit)
+
+predicted_outcome <- predict(avnnet_fit, newdata = test_predictor)
+# Evaluate performance
+metrics <- postResample(pred = predicted_outcome, obs = test_outcome)
+
+# Print the metrics
+print(metrics)
+
+```
+
+The algorithm was only able to build out 3 models that all had the same
+RMSE.
+
+-   This is probably because AVnet is a lightweight neural net
+    implementation. Thus, a more robust implementation is needed.
+
+### RWeka Grid Search
+
+RWeka is a more robust implementation, that can handle more complex models. Thus, this implementation will be used in combination with Grid Search to find the best hyper-parameters.
+
+#### Implement Grid Search
+
+```{r}
+
+train_predictor <- train_set[,-79] # SalePrice is col 80 in data-set
+train_outcome <- train_set [,79] 
+
+test_predictor <- test_set[,-79]
+test_outcome <- test_set[,79]
+# Define parameter grid
+learning_rates <- c(0.1, 0.01, 0.001)
+momentums <- c(0.2, 0.5, 0.9)
+hidden_layers <- c("5", "10,5", "20","32,64,83")  # Different layer configurations
+epochs <- c(100, 200)
+
+# Placeholder for results
+results <- data.frame(LearningRate = numeric(),
+                      Momentum = numeric(),
+                      HiddenLayers = character(),
+                      Epochs = numeric(),
+                      RMSE = numeric(),
+                      stringsAsFactors = TRUE)
+
+# Grid search
+tic()
+set.seed(100)  # Use this seed for consistency in future work
+for (lr in learning_rates) {
+  for (mom in momentums) {
+    for (hl in hidden_layers) {
+      for (epoch in epochs) {
+        
+        # Train model with current parameters
+        model <- MLP(train_outcome ~ ., 
+                     data = train_predictor, 
+                     control = Weka_control(L = lr, M = mom, H = hl, N = epoch))
+        
+        # Evaluate performance (e.g., RMSE)
+        predictions <- predict(model, test_set)
+        rmse <- sqrt(mean((predictions - test_outcome)^2))
+        
+        # Store results
+        results <- rbind(results, data.frame(
+          LearningRate = lr,
+          Momentum = mom,
+          HiddenLayers = hl,
+          Epochs = epoch,
+          RMSE = rmse
+        ))
+      }
+    }
+  }
+}
+toc()
+# Find best parameters
+best_model <- results[which.min(results$RMSE), ]
+print(best_model)
+
+
+```
+
+Based on the Grid Search Results, the best model is number 58. This model is doing a great job at generalizing with a train $R^2$ of 93% and an RMSE of 23447.3 dollars. Test metrics must be computed before we can make an assessment on this model's generalizability.
+
+Additionally, this is a relatively single ANN with a single layer that has 5 hidden neurons and a learn rate of .001. (The learn rate is a little higher, so the model will take a little longer to converge in other words.)
+
+#### Calculate Test Metrics
+
+```{r}
+
+# Extract best parameters
+best_lr <- best_model$LearningRate
+best_mom <- best_model$Momentum
+best_hl <- best_model$HiddenLayers
+best_epochs <- best_model$Epochs
+
+# Train the model with the best parameters
+final_model <- MLP(train_outcome ~ ., 
+                   data = train_set, 
+                   control = Weka_control(L = best_lr, M = best_mom, H = best_hl, N = best_epochs))
+
+final_predictions <- predict(final_model, test_set)
+
+# Calculate RMSE
+rmse <- sqrt(mean((final_predictions - test_outcome)^2))
+
+# Calculate R-squared
+sse <- sum((final_predictions - test_outcome)^2)  # Sum of Squared Errors
+sst <- sum((test_outcome - mean(test_outcome))^2) # Total Sum of Squares
+r_squared <- 1 - (sse / sst)
+
+# Calculate MAE
+mae <- mean(abs(final_predictions - test_outcome))
+
+# Print metrics
+cat("RMSE:", rmse, "\n")
+cat("R-squared:", r_squared, "\n")
+cat("MAE:", mae, "\n")
+
+```
+
+#### Calculate Train Set Metrics
+
+```{r}
+
+train_predictions <- predict(final_model, train_set)
+
+# Calculate RMSE
+train_rmse <- sqrt(mean((train_predictions - train_outcome)^2))
+
+# Calculate R-squared
+train_sse <- sum((train_predictions - train_outcome)^2)  # Sum of Squared Errors
+train_sst <- sum((train_outcome - mean(train_outcome))^2) # Total Sum of Squares
+train_r_squared <- 1 - (train_sse / train_sst)
+
+# Calculate MAE
+train_mae <- mean(abs(train_predictions - train_outcome))
+
+# Print metrics
+cat("Training Set Metrics:\n")
+cat("RMSE:", train_rmse, "\n")
+cat("R-squared:", train_r_squared, "\n")
+cat("MAE:", train_mae, "\n")
+
+```
+
+#### Train vs Test Set Metrics
+
+```{r}
+
+comparison_metrics <- data.frame(
+  Dataset = c("Train", "Test"),
+  RMSE = c(train_rmse, rmse),
+  Rsquared = c(train_r_squared, r_squared),
+  MAE = c(train_mae, mae)
+)
+
+print(comparison_metrics)
+
+```
+
+The table shows that this neural network's train and test metrics are very close. There is only a difference of 2% between the train and test sets.
+
+The RMSE is also quite small at 799.01 dollars. This is very impressive considering that the house prices range from 34,900 dollars to 745,000 dollars.
+
+## 5-fold valuation
+
+```{r}
+
+cv_function_MLP <- function(df, target, nFolds, seedVal, metrics_list, l, m, n, h)
+{
+# create folds using the assigned values
+
+set.seed(seedVal)
+folds = createFolds(df[,target],nFolds)
+
+# The lapply loop
+
+cv_results <- lapply(folds, function(x)
+{ 
+# data preparation:
+
+  test_target <- df[x,target]
+  test_input <- df[x,-target]
+  
+  train_target <- df[-x,target]
+  train_input <- df[-x,-target]
+  pred_model <- MLP(train_target ~ .,data = train_input,control = Weka_control(L=l,M=m, N=n,H=h))  
+  pred <- predict(pred_model, test_input)
+  return(mmetric(test_target,pred,metrics_list))
+})
+
+cv_results_m <- as.matrix(as.data.frame(cv_results))
+cv_mean<- as.matrix(rowMeans(cv_results_m))
+cv_sd <- as.matrix(rowSds(cv_results_m))
+colnames(cv_mean) <- "Mean"
+colnames(cv_sd) <- "Sd"
+cv_all <- cbind(cv_results_m, cv_mean, cv_sd)
+kable(t(cbind(cv_mean,cv_sd)),digits=2)
+}
+
+```
+
+```{r}
+
+cv_function_MLP(hpc_01,79,5,100,metrics_list = c("R2","RMSE"),0.001,0.9,100,"20")
+
+```
+
+```{r}
+ridge_best_lambda <- cv_ridge$lambda.min
+ridge_model <- glmnet(X, y, alpha = 0, lambda = ridge_best_lambda)
+```
+
+
+
+## Visualizations
+
+### Scatter Plot: Actual vs. Predicted Prices (Test Set)
+
+```{r}
+
+# Scatter Plot: Actual vs. Predicted Prices (Test Set)
+scatter_plot <- ggplot(data = data.frame(Actual = test_outcome, Predicted = final_predictions), aes(x = Actual, y = Predicted)) +
+  geom_point(color = "blue", alpha = 0.6) +
+  geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") +
+  labs(title = "Scatter Plot: Actual vs. Predicted Prices (Test Set)",
+       x = "Actual Sale Prices",
+       y = "Predicted Sale Prices") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+
+plot(scatter_plot)
+
+```
+
+Scatter Plot:
+
+It Plots test_outcome (actual values) vs. final_predictions (predicted values). Visual feedback on how well the model's predictions align with actual values. A tight clustering around the diagonal line indicates a good fit. The diagonal red dashed line indicates perfect predictions. Points close to this line signify accurate predictions.
+
+### Comparison Table
+
+```{r}
+
+# Comparison Table Visualization
+
+comparison_metrics$Dataset <- factor(comparison_metrics$Dataset, levels = c("Train", "Test"))
+comparison_plot <- ggplot(comparison_metrics, aes(x = Dataset)) +
+  geom_col(aes(y = RMSE, fill = Dataset), position = position_dodge(width = 0.8), alpha = 0.8) +
+  geom_text(aes(y = RMSE, label = round(RMSE, 2)), vjust = -0.5, color = "black", size = 4) +
+  labs(title = "Comparison of RMSE by Dataset",
+       x = "Dataset",
+       y = "RMSE") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold")) +
+  scale_fill_manual(values = c("Train" = "skyblue", "Test" = "orange"))
+
+plot(comparison_plot)
+
+```
+
+Comparison Table Visualization:
+
+Displays the RMSE values for the train and test datasets as bar heights.
+
+It is an intuitive comparison of RMSE for training and testing datasets to check for overfitting or underfitting. It also annotates the bar heights with their corresponding RMSE values for clarity.
+
+
+
+
+## Assumptions, Limitations and Robustness Checks for Artifical Neural Networks
+
+**Assumptions**
+
+Linear Separability in Transformed Space: Although neural networks can capture non-linear patterns, the dataset must contain enough information for meaningful separation of price categories.
+
+Feature Importance: All selected variables are assumed to have predictive relevance. Features like GarageCars and GrLivArea were identified based on prior knowledge and exploratory data analysis.
+
+No Multicollinearity Among Predictors: Preprocessing removed or combined redundant variables to prevent multicollinearity from impacting model performance.
+
+Data Consistency: The relationships between predictors and the target variable are assumed to be consistent over time and across samples.
+
+**Limitations**
+
+Model Interpretability: Neural networks are inherently less interpretable compared to simpler models (e.g., linear regression). Understanding feature contributions requires additional tools like SHAP or LIME.
+
+Computational Cost: avNNET’s lightweight architecture is suitable for small datasets but may struggle with scalability for larger datasets.
+
+Imputation Bias: Imputation methods for missing values (e.g., median for LotFrontage) could introduce bias if missingness is not random.
+
+Limited Generalizability: Results are specific to the Ames, Iowa dataset and may not generalize to other housing markets.
+
+**Robustness Checks**
+
+Cleaning: We chose not to remove any columns except for the ID Column. We additionally added a binary column to more explicitly record whether a house has a garage or not. The model may have trained differently had we decided to remove some columns.
+
+Outlier Cleaning was also relatively conservative, however MLP’s are fairly robust to outliers, thus this shouldn’t be a huge issue.
+
+Cross-Validation: Performed 5-fold cross-validation to evaluate the model’s performance across different subsets of the data.
+
+Grid Search for Hyperparameters: Conducted a thorough grid search to optimize parameters like learning rate, hidden neurons, and activation function.
+
+Alternative Architectures: Compared avNNET results with RWeka’s neural network implementation to validate findings.
+
+Sensitivity Analysis: Assessed model stability by removing less important variables and retraining.
+
+Infinite Hyperparamter Combinations: There are multiple different hyperparameter combinations which could be applied. It would be computationally intensive and time consuming to evaluate all these combinations.
+
+# Random Forest
+
+```{r}
+set.seed(100)
+
+# Remove missing values as previous workflows can sometimes reintroduce them
+hpc <- hpc %>%
+  filter(!is.na(GarageYrBlt))  #removes NA rows
+
+sum(is.na(hpc$GarageYrBlt))
+
+
+# Split the data into training and testing sets
+hpc_split <- initial_split(hpc, prop = 0.8)
+hpc_train <- training(hpc_split)
+hpc_test <- testing(hpc_split)
+
+
+# Create a recipe (add preprocessing steps as needed)
+hpc_recipe <- recipe(SalePrice ~ ., data = hpc_train) %>%
+  step_normalize(all_numeric_predictors()) %>%  # Normalize numeric predictors
+  step_nzv(all_predictors())  # Remove all near-zero variance predictors
+
+
+```
+
+### Define Model
+
+```{r}
+
+# Define the Random Forest model
+model_hpc <- rand_forest(
+  mtry = tune(),   #no .of features
+  trees = 100,    #no. of trees
+  min_n = 10   #minimum samples
+) %>%
+  set_mode("regression") %>%  # Regression mode
+  set_engine("ranger")
+
+```
+
+
+### Tuning using cross validation and grid search
+
+```{r}
+
+# Create cross-validation folds
+hpc_folds <- vfold_cv(hpc_train, v = 5)
+
+# Define a workflow
+hpc_wf <- workflow() %>%
+  add_model(model_hpc) %>%
+  add_recipe(hpc_recipe)
+
+
+# Tune the model using grid search
+hpc_tune <- hpc_wf %>%
+  tune_grid(
+    resamples = hpc_folds,
+    grid = 10,
+    metrics = yardstick::metric_set(yardstick::rmse, yardstick::rsq)  #Use rmse and rsq
+  )
+
+```
+
+
+### Test set Performance
+
+```{r}
+
+# Select the best model based on RMSE
+best_model_hpc <- hpc_tune %>%
+  select_best(metric = "rmse")
+
+
+# Finalize the workflow with the best model
+final_workflow_hpc <- hpc_wf %>%
+  finalize_workflow(best_model_hpc)
+
+# Fit the final model on the training data and evaluate on the test set
+final_fit_hpc <- final_workflow_hpc %>%
+  last_fit(split = hpc_split)
+
+
+# Collect metrics for the test set
+test_metrics <- final_fit_hpc %>%
+  collect_metrics()
+print("Test Set Metrics:")
+print(test_metrics)
+
+# Collect predictions for the test set
+test_predictions <- final_fit_hpc %>%
+  collect_predictions()
+```
+
+
+### Train set Performance
+
+```{r}
+
+# Extract the finalized model again to evaluate on train set
+final_model <- final_workflow_hpc %>%
+  fit(data = training(hpc_split))
+
+# Collect predictions for the training set
+train_predictions <- predict(final_model, new_data = training(hpc_split)) %>%
+  bind_cols(training(hpc_split))
+
+# Calculate metrics for the training set
+train_metrics <- train_predictions %>%
+  yardstick::metrics(truth = SalePrice, estimate = .pred)
+print("Training Set Metrics:")
+print(train_metrics)
+
+```
+
+The Random Forest model demonstrates strong performance on the training set, with RMSE of 13,587.71, MAE of 8,227.26 and a high R^2 of 0.974, indicating it fits the training data very well. However, its performance on the test set significantly declines, with a much higher RMSE of 33,347.92 and a lower R^2 of 0.786. The model is overfitting the training data. While further tuning could be considered, the current results from multiple models reflect a comprehensive evaluation.
+
+
+## Visualize Predictions for Test Data
+
+```{r}
+
+ggplot(test_predictions, aes(x = SalePrice, y = .pred)) +
+  geom_point(alpha = 0.5) +
+  geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") +
+  theme_minimal() +
+  labs(title = "Predicted vs. Actual SalePrice from Random Forest Model", 
+       x = "Actual SalePrice", 
+       y = "Predicted SalePrice")
+
+```
+
+Most points cluster around the line, indicating that the model performs well for a majority of predictions. However, there are visible deviations and outliers at higher SalePrices, where the model over predicts these values.
+
+
+## Limitations, Assumptions, and Robustness Checks for Random Forest Model
+
+Limitations:
+
+1. Random Missing: Removing rows assumes that missingness is random, but if the missing values are systematic (e.g. more frequent in higher or lower SalePrice observations), the results could be biased.
+
+2. Bias-Variance Tradeoff: Reducing training time and computation cost by decreasing the number of trees or folds may increase bias and overlook complex patterns, leading to lower predictive accuracy.
+
+3. Lack of Interpretability: While the model performs decently well on training data, it is difficult to interpret important predictors and decision boundaries from the results.
+
+Assumptions:
+
+1. Sufficient Tuning: The chosen hyperparameter ranges assume they sufficiently capture the optimal space for model performance.
+2. Non-Linearity: The results from the model are based on a non-linear assumption between predictors and the target variable.
+3. No Multicollinearity: As it selects features and observations randomly during tree construction, it is assumed to be robust to multicollinearity.
+
+Robustness Checks:
+
+1.	Cross-Validation: The model's performance was validated using 5-fold cross-validation, ensuring generalization across different subsets of the data.
+2.	Hyperparameter Tuning: Grid search tuning was performed for key parameters such as mtry and trees to optimize model performance.
+3.	Outlier Detection: Visual representation of predictions vs. actual values highlights areas where the model struggles and needs attention, particularly for extreme values.
+
+# Linear Regression Comparison
+
+```{r}
+
+
+set.seed(123)
+train_rows <- createDataPartition(hpc_01$SalePrice,p = 0.8, list = FALSE)
+
+train_set_01 <- hpc_01[train_rows,]
+test_set_01 <- hpc_01[-train_rows,]
+
+vars_to_drop <- c("Condition2","MiscFeature","PoolQC","Exterior1st","Exterior2nd")
+
+# Drop the variables from the train set
+train_set_01 <- train_set_01[, !(colnames(train_set_01) %in% vars_to_drop)]
+
+# Drop the variables from the test set
+test_set_01 <- test_set_01[, !(colnames(test_set_01) %in% vars_to_drop)]
+
+m2 <- lm(SalePrice ~ ., data = train_set_01)
+
+m1_te_pred <- predict(m2,newdata=  train_set_01)
+m2_te_pred <- predict(m2, newdata = test_set_01)
+
+mmetric(m1_te_pred,train_set_01$SalePrice,metric = c("R2","RMSE"))
+mmetric(m2_te_pred,test_set_01$SalePrice,metric = c("R2","RMSE"))
+
+
+```
+
+This is just a simple linear regression model. Some of the variables had to be dropped like `Exterior1st` which had different levels between the train and test sets. (In other words one of `Exterior1st` levels was in the train set but not the test set. This caused linear regression to have some issues.
+
+However, despite this the model generalizes well to the data with a 4% drop between train and test in $R^2$. The drop in RMSE however is moderate at 4,057 dollars.
+
+The model also does really well, but not quite as well as some of its other counterparts like Elastic Regression or Neural Networks. It however needs variables with a lot of variance, not as robust as the other models.
