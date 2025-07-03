@@ -15,5 +15,5 @@ Grid Search with Hyperparamter Tuning was performed on serveral of these models.
 
 # File Info: 
 
-- final_project_report: summarized view of findings
-- Machine Learning Project: contains the code and detailed explanations of findings.
+- **Machine Learning Project**: contains the code and detailed explanations of findings.
+- Other Files contain visualizations and some other extra code. The above file however is the most important.
