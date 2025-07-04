@@ -11,7 +11,7 @@ For this project, my team utilized R to help with predicting the prices of homes
 - Random Forest
 - XGboost
 
-Grid Search with Hyperparamter Tuning was performed on serveral of these models. The model with the best performance was the Nueral Network with an **R-squared** of __93%__ and an **RMSE of $26,559.73 dollars.
+Grid Search with Hyperparamter Tuning was performed on serveral of these models. The model with the best performance was the Neural Network with an **R-squared** of __93%__ and an **RMSE of $26,559.73 dollars.
 
 # File Info: 
 
