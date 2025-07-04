@@ -1,0 +1,1213 @@
+---
+title: "Neural Network Analysis"
+author: "Ahsan Ahmad, Varun Selvam, Nikita Muddapati"
+date: "2024-11-22"
+output: 
+  html_document:
+    theme: flatly
+    df_print: paged
+    toc: true
+    toc_float:
+      smooth_scroll: true
+execute:
+  include: true
+  eval: true    
+  warning: false
+  message: false
+---
+
+# Q1: From what perspective are you conducting the analysis? (Who are you? / Who are you working for?)
+
+This analysis is conducted from the perspective of a real-estate analytics team at Zillow. Our objective is to create a robust neural network model to predict house prices in the suburbs of Ames, Iowa, based on historical housing data.
+
+# Q2: What is your question?
+
+We aim to build a neural network model utilizing the avNNET and RWeka R packages to predict house prices in Ames, Iowa. The goal is to identify key predictors of house prices and achieve high accuracy and generalizability across training and test datasets.
+
+# Q3: Describe your dataset(s) including URL (if available).
+
+The data-set that we are using is from the Houses Prices- Advanced Regression Techniques. This data-set has 1460 observations and 80 predictors that describe various aspects of the houses in Ames, Iowa. However after cleaning, the dataset has 1383 observtions and 78 predictors. Please see the Cleaning Data Section for more details about how the data cleaning was conducted.
+
+URL: https://www.kaggle.com/c/house-prices-advanced-regression-techniques/data
+
+# Q4: What are your independent and dependent variables? Include variable type.
+
+*Numeric Variables:*
+
+MSSubClass: The building class
+LotFrontage: Linear feet of street connected to property
+LotArea: Lot size in square feet
+YearBuilt: Original construction date
+YearRemodAdd: Remodel date
+MasVnrArea: Masonry veneer area in square feet
+BsmtFinSF1: Type 1 finished square feet
+BsmtFinSF2: Type 2 finished square feet
+BsmtUnfSF: Unfinished square feet of basement area
+TotalBsmtSF: Total square feet of basement area
+1stFlrSF: First Floor square feet
+2ndFlrSF: Second floor square feet
+LowQualFinSF: Low quality finished square feet (all floors)
+GrLivArea: Above grade (ground) living area square feet
+BsmtFullBath: Basement full bathrooms
+BsmtHalfBath: Basement half bathrooms
+FullBath: Full bathrooms above grade
+HalfBath: Half baths above grade
+Bedroom: Number of bedrooms above basement level
+Kitchen: Number of kitchens
+TotRmsAbvGrd: Total rooms above grade (does not include bathrooms)
+Fireplaces: Number of fireplaces
+GarageYrBlt: Year garage was built
+GarageCars: Size of garage in car capacity
+GarageArea: Size of garage in square feet
+WoodDeckSF: Wood deck area in square feet
+OpenPorchSF: Open porch area in square feet
+EnclosedPorch: Enclosed porch area in square feet
+3SsnPorch: Three season porch area in square feet
+ScreenPorch: Screen porch area in square feet
+PoolArea: Pool area in square feet
+MiscVal: Value of miscellaneous feature
+MoSold: Month Sold
+YrSold: Year Sold
+*Categorical Variables:*
+
+MSZoning: The general zoning classification
+Alley: Type of alley access
+LotShape: General shape of property
+LandContour: Flatness of the property
+LotConfig: Lot configuration
+LandSlope: Slope of property
+Neighborhood: Physical locations within Ames city limits
+Condition1: Proximity to main road or railroad
+Condition2: Proximity to main road or railroad (if a second is present)
+BldgType: Type of dwelling
+HouseStyle: Style of dwelling
+OverallQual: Overall material and finish quality
+OverallCond: Overall condition rating
+RoofStyle: Type of roof
+RoofMatl: Roof material
+Exterior1st: Exterior covering on house
+Exterior2nd: Exterior covering on house (if more than one material)
+MasVnrType: Masonry veneer type
+ExterQual: Exterior material quality
+ExterCond: Present condition of the material on the exterior
+Foundation: Type of foundation
+BsmtQual: Height of the basement
+BsmtCond: General condition of the basement
+BsmtExposure: Walkout or garden level basement walls
+BsmtFinType1: Quality of basement finished area
+BsmtFinType2: Quality of second finished area (if present)
+Heating: Type of heating
+HeatingQC: Heating quality and condition
+Electrical: Electrical system
+KitchenQual: Kitchen quality
+Functional: Home functionality rating
+FireplaceQu: Fireplace quality
+GarageType: Garage location
+GarageFinish: Interior finish of the garage
+GarageQual: Garage quality
+GarageCond: Garage condition
+PavedDrive: Paved driveway
+PoolQC: Pool quality
+Fence: Fence quality
+MiscFeature: Miscellaneous feature not covered in other categories
+SaleType: Type of sale
+SaleCondition: Condition of sale
+*Binary Variables:*
+
+Street: Type of road access
+Utilities: Type of utilities available
+CentralAir: Central air conditioning
+
+# Q5: How are your variables suitable for your analysis method?
+
+Neural networks can model complex, non-linear relationships between predictors and the target variable. The dataset's combination of numeric and categorical variables makes it well-suited for neural networks, as these models can effectively learn patterns and interactions across multiple data types.
+
+The dataset was preprocessed as follows to ensure compatibility with the avNNET and RWeka packages:
+
+Numeric Variables: Scaled to a range of [0, 1] for improved convergence.
+Categorical Variables: One-hot encoded.
+Missing Data: Imputed using median/mode imputation.
+
+# Q6: What are your conclusions?
+The final neural network model was trained using grid search (RWeka Package) and evaluated on a held-out test set. Key findings include:
+
+*Model Performance:*
+
+Training R²: 0.93
+Test R²: 0.90
+The high R² on both sets indicates that the model generalizes well, minimizing overfitting.
+
+*Output Visualization:*
+
+Figure 1: Scatter plot of actual vs. predicted prices shows a tight clustering around the diagonal, indicating strong predictive accuracy.
+Figure 2: A Bar Plot showing summary of test set performance metrics, including RMSE and MAE.
+
+# Q7: What are your assumptions and limitations? What robustness checks did you perform or would you perform?
+*Assumptions*
+Linear Separability in Transformed Space: Although neural networks can capture non-linear patterns, the dataset must contain enough information for meaningful separation of price categories.
+Feature Importance: All selected variables are assumed to have predictive relevance. Features like GarageCars and GrLivArea were identified based on prior knowledge and exploratory data analysis.
+No Multicollinearity Among Predictors: Preprocessing removed or combined redundant variables to prevent multicollinearity from impacting model performance.
+Data Consistency: The relationships between predictors and the target variable are assumed to be consistent over time and across samples.
+*Limitations*
+Model Interpretability: Neural networks are inherently less interpretable compared to simpler models (e.g., linear regression). Understanding feature contributions requires additional tools like SHAP or LIME.
+Computational Cost: avNNET's lightweight architecture is suitable for small datasets but may struggle with scalability for larger datasets.
+Imputation Bias: Imputation methods for missing values (e.g., median for LotFrontage) could introduce bias if missingness is not random.
+Limited Generalizability: Results are specific to the Ames, Iowa dataset and may not generalize to other housing markets.
+*Robustness Checks*
+Cross-Validation: Performed 5-fold cross-validation to evaluate the model's performance across different subsets of the data.
+Grid Search for Hyperparameters: Conducted a thorough grid search to optimize parameters like learning rate, hidden neurons, and activation function.
+Data Augmentation: Tested the model on bootstrapped samples to ensure performance consistency.
+Alternative Architectures: Compared avNNET results with RWeka's neural network implementation to validate findings.
+Sensitivity Analysis: Assessed model stability by removing less important variables and retraining.
+
+
+# Load Libraries
+
+```{r}
+
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE) #Suppress warnings when libraries are loaded.
+
+```
+
+```{r}
+
+library(DDoutlier)
+library(ggplot2)
+library(gridExtra)
+library(tidyverse)
+library(RWeka)
+library(caret)
+library(rminer)
+library(tictoc)
+library(doParallel)
+library(mlbench)
+
+```
+
+# Read in CSV Functions
+
+```{r}
+
+house_prices <- read.csv("C:\\Users\\varun\\Box Sync\\Business Analytics Degree\\Semesters\\Fall Semester 2024\\MKTG 6620\\HW_1\\house-prices-advanced-regression-techniques\\train.csv")
+
+```
+
+# Cleaning the Dataset
+
+This dataset has a few issues which must be addressed through cleaning. Outliers must also be addressed. Afterwards, the dataset can be utilized for modelling.
+
+## Address Missing Values
+
+```{r}
+
+# Define function to check %age of NAs in each column
+
+find_na <- function(x) sum(is.na(x))
+
+# Apply function to each column with map()
+missing_values <- map(.x = house_prices, .f = find_na) %>% 
+  unlist() %>% 
+  data.frame()
+
+missing_values %>% 
+  filter(. != 0) %>% 
+  mutate(pctg = ./nrow(house_prices)) %>% 
+  arrange(desc(pctg)) %>% 
+  round(4)
+
+```
+
+### Address Columns greater than 90% of NA's
+
+#### Check Levels for Variables
+
+The below code checks the levels for the variables that have more than 90% of their values missing.
+
+```{r}
+
+unique(house_prices$PoolQC)
+unique(house_prices$MiscFeature)
+unique(house_prices$Alley)
+
+```
+
+Per the Kaggle Dictionary, Na for `PoolQC` means that there is no pool. Thus, these NA values can be replaced with "No Pool"
+
+Additionally, per the Kaggle Dictionary, NA for `MiscFeature` means that there is no Miscallenous Feature in the house. These NA values can also be replaced with "No Misc Feature". 
+
+Finally NA for `Alley` means that there is no Alley Access for that house. Hence NA for this column can also be replaced with "No Alley". 
+
+#### Recode PoolQC
+
+```{r}
+
+# Recoding cols
+
+# Recode NA in FireplaceQu to "No Fireplace"
+house_prices$PoolQC[is.na(house_prices$PoolQC)] <- "No Pool"
+
+# Check that recoding the NA values worked
+unique(house_prices$PoolQC)
+
+
+```
+
+#### Recode MiscFeature
+
+```{r}
+
+# Recode NA in MiscFeature to "No Misc Feature"
+house_prices$MiscFeature[is.na(house_prices$MiscFeature)] <- "No Misc Feature"
+
+# Check that recoding the NA values worked
+unique(house_prices$PoolQC)
+
+```
+
+#### Recode Alley
+
+```{r}
+
+# Recode NA in MiscFeature to "No Misc Feature"
+house_prices$Alley[is.na(house_prices$Alley)] <- "No Alley"
+
+# Check that recoding the NA values worked
+unique(house_prices$Alley)
+
+```
+
+
+## Address Remaining Missing Values 
+
+```{r}
+
+# use above function again to check %age of remaining columns' NA's (<90%)
+# recode cols again/impute numeric cols with median and categorical cols with mode
+
+missing_values <- map(.x = house_prices, .f = find_na) %>%  
+  unlist() %>% 
+  data.frame()
+
+missing_values %>% 
+  filter(. != 0) %>% 
+  mutate(pctg = ./nrow(house_prices)) %>% 
+  arrange(desc(pctg))  
+
+```
+
+
+#### Analyze Fence Quality
+
+```{r}
+
+unique(house_prices$Fence)
+
+```
+
+The "Fence Quality" is a categorical variable that contains 4 categories: 
+* MnPrv
+* GdWo
+* GdPrv
+* MnWw.
+
+Per the Kaggle Competition Website, this column describes the quality of the fence for a property. The Kaggle Website also states that "NA" represents "No Fence".
+
+Thus, NA can be recoded as "No Fence"
+
+```{r}
+
+# Recode NA in Fence to "No Fence"
+house_prices$Fence[is.na(house_prices$Fence)] <- "No Fence"
+
+# Check that recoding the NA values worked
+unique(house_prices$Fence)
+
+```
+
+Recoding the NA Values was successful. 
+
+#### Analyze Fireplace Qu
+
+`Fireplace Qu` stands for Fireplace Quality and describes the quality of a fireplace. Additionally Kaggle states that NA means that the home does not have a fireplace. 
+
+Thus, any NA values will be recoded to represent "No Fireplace".
+
+```{r}
+
+# Recode NA in FireplaceQu to "No Fireplace"
+house_prices$FireplaceQu[is.na(house_prices$FireplaceQu)] <- "No Fireplace"
+
+# Check that recoding the NA values worked
+unique(house_prices$FireplaceQu)
+
+```
+
+#### Analyze Lot Frontage
+
+```{r}
+
+# Select only numeric columns
+numeric_data <- house_prices %>%
+  select(-Id,-OverallQual,-OverallCond,-MSSubClass) %>% 
+  select(where(is.numeric))
+
+# Calculate the correlation matrix
+cor_matrix <- cor(numeric_data, use = "complete.obs")
+
+# Extract correlations for LotFrontage
+lotfrontage_correlations <- cor_matrix["LotFrontage", ]
+
+# Display the correlations
+lotfrontage_correlations
+
+```
+
+Lot Frontage does not seem to be strongly correlated with any of the numeric variables. Thus, using a package like Amelia might not be very appropriate. (Amelia would basically create a model that takes the other columns and uses them to predict potential values for the other columns.) 
+
+It should also be noted that although the correlation with the Target Variable `SalePrice` is quite low at .34, it could be still be useful in combination with other variables. 
+
+However in terms of dealing with the NA's, imputation with the median should be fairly reliable. The column is only missing 17.74% of its values. This means that utilizing the median should be reliable since most of the column's values (82.26%) are present. 
+
+```{r}
+
+# Compute the median
+median_lot_frontage <- median(house_prices$LotFrontage,na.rm = TRUE)   # median= 69
+
+median_lot_frontage
+
+# Impute with the median
+house_prices$LotFrontage[is.na(house_prices$LotFrontage)] <- median_lot_frontage
+
+# Check Missing Values
+sum(is.na(house_prices$LotFrontage))
+
+```
+
+#### Analyze all the Garage Variables
+
+The Garage Variables all are missing 81 variables which comprise 5.55% of the dataset: 
+
+* `GarageType`
+* `GarageYrBlt`
+* `GarageFinish`
+* `GarageQual`
+* `GarageCond`
+
+According to Kaggle, NA for `GarageType`, `GarageFinish`, `GarageQual`, `GarageCond` represents "No Garage". This means that the NA value can be recoded as "No Garage" for the above columns. 
+
+NA for "Garage Built" however will be a little tricky since including a number like 0 or -9999 or 1 to represent no Garage may confuse any ensemble models. This is because the model may believe that 1 or -9999 is a valid year.
+
+Thus, to avoid any potential confusion or creating possible outliers like 9999, we will just leave NA in `GarageYrBlt` alone. (We can't replace it with a string like "No Garage" because the column type will change and it'll no longer be numeric.) 
+
+Instead, a new column will be created that more explicitly states whether a house has a garage or not. Thus, a new column will be created wtih "0" representing no garage and "1" representing a garage. (This info can be gleaned from the other Garage Columns but we believe that having an explicit column for Garage will make it easier to assess Garage's influence on price and it can be used to compare houses that don't have garages vs having a garage for clustering as well. (We may do clustering and then run a model on that cluster, so having this column will be helpful for that as well.)
+
+```{r}
+# create a vector to store all the columns
+garage_col <- c("GarageType", "GarageFinish", "GarageQual", "GarageCond")
+
+# Replace NA in specified columns with new value
+house_prices <- house_prices %>% 
+  mutate(across(all_of(garage_col), ~ replace_na(., "No Garage")))
+
+```
+
+The new column `HasGarage` has been created to represent explicitly whether a house has a garage or not.
+
+```{r}
+
+house_prices <- house_prices %>%
+  mutate(HasGarage = ifelse(is.na(GarageYrBlt), "No", "Yes")  # Create a binary indicator for garage presence
+  )
+
+```
+
+
+#### Analyze all the Basement Variables
+
+According to Kaggle, NA for `BsmtExposure`, `BsmtFinType2`, `BsmtQual`, `BsmtCond` and `BsmtFinType1` represents "No Basement". This means that the NA value can be recoded as "No Basement" for the above columns.
+
+They are also all missing roughly the same amount of values in all the columns.
+
+```{r}
+
+# create a vector to store all the columns
+basement_col <- c("BsmtExposure", "BsmtFinType2", "BsmtQual", "BsmtCond","BsmtFinType1")
+
+# Replace NA in specified columns with new value
+house_prices <- house_prices %>% 
+  mutate(across(all_of(basement_col), ~ replace_na(., "No Basement")))
+
+```
+
+#### Analyze all the MasVnr Variables
+
+Kaggle states that if there is no Masonry Veneer for the house, then the value is "None" for the `MasVnrType` variable. This indicates that the variable is genuinely missing values. (i.e any NA values are geniunely missing values and cannot be imputed with "None")
+
+Additionally, if a house does not have a Masonry Veneer, then the `MasVnrArea` is zero. The below code chunk shows this:
+
+```{r}
+
+house_prices %>% 
+  select(MasVnrType,MasVnrArea) %>% # Select the following two columns
+  filter(MasVnrType == "None") %>% # Only select rows where client marked "None".
+  head()
+
+```
+The code shows that everytime `MasVnrType` is None, the `MasVnrArea` variable is Zero. Despite this, there are only 8 values missing in both columns which is less than 1% of the data at 0.54% This is a very small amount which means that imputing with median/mode is appropriate.
+
+
+```{r}
+
+# Define function to find the mode of a character vector
+find_mode <- function(x){
+  table(x) %>% 
+    which.max() %>% 
+    names()
+}
+
+# Compute with the median
+MasVnrType_mode <- find_mode(house_prices$MasVnrType)
+
+MasVnrType_mode
+
+# Impute with the median
+house_prices$MasVnrType[is.na(house_prices$MasVnrType)] <- MasVnrType_mode  # mode = "None"
+
+# Check Missing Values
+sum(is.na(house_prices$MasVnrType))
+
+```
+
+```{r}
+
+# Compute with the median
+median_MasVnrArea <- median(house_prices$MasVnrArea,na.rm = TRUE)  #median = 0
+median_MasVnrArea
+
+# Impute with the median
+house_prices$MasVnrArea[is.na(house_prices$MasVnrArea)] <- median_MasVnrArea
+
+# Check Missing Values
+sum(is.na(house_prices$MasVnrArea))
+
+```
+
+MasVnrType has been successfully imputed with the mode while MasVnrArea has also been successfully imputed with the median.
+
+#### Analyze Electrical Variable
+
+The Electrical Variable is only missing one observation. This missing value can be replaced with the mode since it's a categorical variable.
+
+```{r}
+# Get the mode for electrical
+electrical_mode <- find_mode(house_prices$Electrical)
+
+# Impute with the mode
+house_prices$Electrical[is.na(house_prices$Electrical)] <- electrical_mode
+
+# Check missing values
+sum(is.na(house_prices$Electrical))
+
+```
+
+The imputation was successful, there are no missing values, except for `GarageYrBlt` This however was done on purpose, please see "Analyze all the Garage Variables" for more information.
+
+```{r}
+
+map(.x = house_prices, .f = find_na) %>% 
+  unlist() %>% 
+  data.frame()
+
+```
+
+## Drop ID Column
+
+```{r}
+
+# Drop Id column not needed
+house_prices <- house_prices %>% 
+  select(-Id)
+
+```
+
+The Id Column is dropped since it is just used to identify each individual house. It does not say anything else or reveal any interesting characteristics about the house.
+
+## Factor Conversion
+
+```{r}
+
+# Factoring all categorical and numeric variables
+
+# Mutate any character variables into factors
+house_prices <- house_prices %>% mutate_if(is.character, as.factor)
+
+# Numeric Variables which should be factors stored as a vector
+cat_values <- c("OverallQual","OverallCond","MSSubClass", "MoSold")
+
+# Utilize mutate to transform all the columns in the cat_values vector to factors.
+house_prices <- house_prices %>% 
+  mutate(across(all_of(cat_values), as.factor))
+
+# Display the summary of train_clean
+summary(house_prices)
+
+
+```
+
+This code will all the character variables along with some numeric variables to factors.
+
+* `OverallQual` is being converted because the numeric ratings have a categorical values with them. i.e 10 is "very excellent" while 9 is "excellent". Thus to capture these categorical values, `OverallQual` is being converted to a factor. (This info is from the data dictionary on Kaggle.)
+  
+  * Overall Quality rates the overall material and finish of the house.
+
+* `OverallCond` also reflect this with the numeric rating containing categorical information. For instance, a 9 is "excellent" while an 8 is "very good". (This info is from the data dictionary on Kaggle.)
+
+  * Overall Cond rates the overall condition of the house.
+
+* `MSSubclass` also contains categorical information which has been represented as a numeric variable. Thus, to capture this information, this variable will also be converted to a factor. For instance, "20" represents a "1-STORY 1946 & NEWER ALL STYLES"
+
+  * Identifies the type of dwelling involved in a sale.
+  
+* `MoSold` just represents the month that a house was sold. This should be a categorical variable, it makes no sense to calculate the "median" month, etc. There additionally is no meaningful numeric diference between "January" and "February" for instance. These are just names of the months which this variable represnts. It has just been created as a numeric column.
+
+## Outliers Analysis
+
+To remove the outliers, the LOF (Local Outlier Factor) algorithm will be utilized. This approach utilizes LOOP (Local Outlier Probability) where it utilizes the LOF Scores to calculate the probability of an observation being an outlier.
+
+Afterwards any observations that have a greater than 75% probability of being an outlier will be removed from the dataset.
+
+```{r}
+
+numeric_columns <- sapply(house_prices, is.numeric) 
+
+house_clean_numeric <- house_prices[, numeric_columns] # subset train_clean using only numeric cols  (33 cols)
+
+house_clean_numeric <- house_clean_numeric %>% select(-GarageYrBlt)
+# Can't have missing values
+
+lof<- sapply(5:10, function(k) LOF(house_clean_numeric,k))
+
+```
+
+This above code calculates 6 LOF Values for each row in the dataset. For instance, for row 1, the chunk will calculate the LOF for 5 neighbors, 6 neighbors, etc. up to 10 neighbors.
+
+```{r}
+
+#calcuate median lof of different neighborhood sizes.
+
+lof<-apply(lof,1,median)
+
+```
+
+The above code then calculates the median LOF score for each row from the 6 LOF scores previously generated for each row.
+
+```{r}
+
+loop<- sapply(5:10, function(k) LOOP(house_clean_numeric,k))
+loop<-apply(loop,1,median)
+
+# Remove observation with LOOP more than .75
+# hpc = house_prices_clean
+hpc <- house_prices[loop <= 0.75, ]
+
+```
+
+A potential issue however that was present in the last approach with utilizing the LOF Algorithm was that the threshold was a little arbitrarily decided. A potential work around to this issue is to utilize LOOP. LOOP utilizes LOF Scores to calculate the probability of an observation being an outlier. Afterwards, any LOOP values that are greater than .75 would be filtered out from the dataset.
+
+This method is more robust then the LOF Approach #1 where a threshold was somewhat arbitrarily selected based on some guidelines. Additionally, this method calculates the median LOF Score across different number of neighbors which gives a more robust view of an observation's Local Reachabilty Density and LOF score. (This is because we are taking the median of several LOF Scores as opposed to just one LOF score like in the previous method.)
+
+There is the issue of selecting which probabilty threshold should be selected for determining if something is an outlier. However, the median LOF Scores which are used to calculate the LOOP should provide a better view than just using LOF Scores from a fixed neighbor number. (i.e calculating the LOF Scores from just 6 neighbors for every observation.)
+
+```{r}
+
+row_reduction_02 <- ((1460 - nrow(hpc))/1460) * 100
+
+round(row_reduction_02,2)
+
+
+nrow(hpc)
+ncol(hpc)
+
+```
+
+The dataset now has 1,439 rows and 81 columns. This is a 1.44% reduction which means that 98.56% of the data has been conserved.
+
+This approach is more robust approach because it considers the impact of multiple neighbors (5 nearest neighbors to 10 nearest neighbors) by calculating the median. Calculating the median of the different LOF scores helps to show a more consistent picture of an observation's density point. 
+
+Furthermore, when combined with LOOP, this method can avoid arbitrary thresholds as previously explained. Deciding on a probability however is still a little arbitrary, but a bit more easier than deciding a threshold score which is dependent on the LOF Score which depends on a an observation's local reachable density point.
+
+# Neural Networks
+
+```{r}
+
+# Designate a shortened name MLP for the MultilayerPercentron ANN method in RWeka
+MLP <- make_Weka_classifier("weka/classifiers/functions/MultilayerPerceptron")
+
+```
+
+## Partition Dataset
+
+```{r}
+
+# Partititon Dataset via 80/20 split
+set.seed(123)
+row_indices <- createDataPartition(hpc$SalePrice,p=0.8,list=FALSE)
+
+# Assign rows to train and test set respectively 
+train_set <- hpc[row_indices,] # 80% of data should be in train
+test_set <- hpc[-row_indices,] # 20 % of data should be in test
+
+nrow(train_set) # Display Number of rows
+nrow(test_set) # Display Number of rows
+
+total_rows <- nrow(train_set) + nrow(test_set)
+total_rows
+```
+
+The partition is successful, the number of rows from the train set (1153) and the test set(286) is equal to 1439 rows.
+
+# Set up Cores 
+
+```{r}
+
+num_cores <- detectCores()
+num_cores <- num_cores - 1 
+
+
+```
+
+
+
+# First Model
+
+```{r}
+
+tic()
+doParallel::registerDoParallel(cores = num_cores) 
+ANN_00 <- MLP(SalePrice ~ . , data = train_set)
+toc()
+
+#saveRDS(ANN_00, file = "ANN_00.rds")
+
+
+```
+## Generate Predictions and Metrics
+
+```{r}
+# Generate Evaluation Metrics
+metrics_list <- c("MAE","RMSE","MAPE","RMSPE","RAE","RRSE","R2")
+
+# Generate Predictions
+#tr = train
+ANN_00_train <- predict(ANN_00,newdata = train_set)
+# te = test
+ANN_00_test <- predict(ANN_00, test_set)
+
+# Rounding Function for the metrics 
+round_metrics <- function(x) {
+  return(lapply(x, function(y) {
+    if (is.numeric(y)) {
+      return(round(y, 2))
+    } else {
+      return(y)
+    }
+  }))
+}
+
+
+# In the Weka model, there are default paramters which are list down below
+#l <- 0.3 - learn rate
+#m <- 0.2 - momentum
+#n <-500 - number of epochs/passes
+#h <- 'a' - #The hidden nodes to be created on each layer:
+  # an integer, or the letters 'a' = (# of attribs + # of classes) / 2, 
+  #'i' = # of attribs, 'o' = # of classes, 't' = (# of attribs + # of classes)
+  # default of H is 'a'.
+
+```
+
+### Train Metrics
+
+```{r}
+ANN_00_tr_met <- mmetric(train_set$SalePrice,ANN_00_train,metric = metrics_list)
+round_metrics(ANN_00_tr_met)
+
+```
+
+The model seems to be doing good on the train set with an $R^2$ of 93%. This means that the model is able to explain 93% of the variation within the data.
+
+The RMSE also seems fairly decent at 23190.96, dollars. This means that the model's predictions are of on average by 23190.96 dollars.
+
+### Test Metrics
+
+```{r}
+
+ANN_00_te_met <- mmetric(test_set$SalePrice,ANN_00_test,metric = metrics_list)
+round_metrics(ANN_00_te_met)
+
+```
+
+It appears that the model is over-fitting when it's cross-validated with the test set. For instance, $R^2$ sees a modest decrease of 10% from the train to the test set. (train_set $R^2$: 93%, test_set$R^2$: 83%)
+
+The RMSE however sees a large increase of 8150.59 dollars from the train to the test sets. (train_set RMSE: 23190.96, test_set RMSE: 31341.55)
+
+This means that the model is picking up on noise in the data and is very complicated. A potential reason could be that the model has 171 hidden nodes on 1 layer.
+
+# Second Model
+
+```{r}
+
+# These are the default values for MLP, except for h
+l <- 0.3
+m <- 0.2
+n <-500
+h <- '86' # Split the number of hidden nodes by half (171/2)
+# 86 means 1 layer with 86 nodes
+
+tic()
+doParallel::registerDoParallel(cores = num_cores) 
+ANN_02 <- MLP(SalePrice ~ . , data = train_set,control= Weka_control(L = l, M = m, N = n, H = h))
+toc()
+
+saveRDS(ANN_02, file = "ANN_02.rds")
+
+summary(ANN_02)
+
+
+```
+
+Since the first model slightly overfit, we'll attempt to simplify this model by reducing the number of nodes on the hidden layer. We can do this by cutting the number of nodes in half. If one looks at the first, model there were 171 nodes, so we'll cut this in half and train the model. 
+
+## Generate Predictions and Train Metrics
+
+```{r}
+
+ANN_02_train <- predict(ANN_02,newdata = train_set)
+ANN_02_test <- predict(ANN_02,newdata= test_set)
+
+ANN_02_tr_met <- mmetric(train_set$SalePrice,ANN_02_train,metric = metrics_list)
+round_metrics(ANN_02_tr_met)
+
+
+```
+
+## Test Metrics
+
+```{r}
+
+ANN_02_te_met <- mmetric(test_set$SalePrice,ANN_02_test,metric = metrics_list)
+round_metrics(ANN_02_te_met)
+
+```
+
+Reducing the nodes by half on the hidden layer has caused the model overfit even more severely.
+
+This model's RMSE is: 
+* train_set RMSE: 42904.12
+* test_set RMSE: 55100.95
+* difference: 12196.83
+ 
+The RMSE values are much higher than the first model's RMSE Values which are listed down below for reference.
+
+First model's RMSE: 
+* train_set RMSE: 23190.96
+* test_set RMSE: 31341.55
+* difference: 8150.59
+
+Additionally the $R^2$ on the first model was: 
+* train $R^2$: 93%
+* test $R^2$: 83%
+* difference: 10%
+
+$R^2$ on second model for train and test:
+* train $R^2$: 93%
+* test $R^2$: 78%
+* difference: 15% 
+
+These metrics indicate that the number of nodes should not be reduced so drastically since it causes a large decline in model performance. The model actually overfits more.
+
+The third model will thus seek to reduce the number of nodes but not by much this time around.
+
+# Third Model
+
+```{r}
+
+# These are the default values for MLP, except for h
+l <- 0.3
+m <- 0.2
+n <-500
+h <- '128' # Split the number of hidden nodes by half
+
+tic()
+ANN_03 <- MLP(SalePrice ~ . , data = train_set,control= Weka_control(L = l, M = m, N = n, H = h))
+toc()
+
+saveRDS(ANN_03, file = "ANN_03.rds")
+
+```
+
+# Generate Predictions and Train Metrics
+
+```{r}
+
+ANN_03_train <- predict(ANN_03,newdata = train_set)
+ANN_03_test <- predict(ANN_03,newdata= test_set)
+
+ANN_03_tr_met <- mmetric(train_set$SalePrice,ANN_03_train,metric = metrics_list)
+round_metrics(ANN_03_tr_met)
+
+```
+
+# Test Metrics
+
+```{r}
+
+ANN_03_te_met <- mmetric(test_set$SalePrice,ANN_03_test,metric = metrics_list)
+round_metrics(ANN_03_te_met)
+
+```
+
+This model more severely overfits when compared to the previous two models.  
+
+This Models Train and Test RMSE (M3), $R^2$: 
+
+* Train RMSE: 14859.19
+* Test RMSE: 41730.83
+* Difference between RMSE: 26871.64
+* Train $R^2$: 97%
+* Train $R^2$: 78%
+* Difference between $R^2$: 19% 
+
+Previous Model's Train and Test RMSE (M2), $R^2$:
+* Train RMSE: 78891.49 dollars 
+* Test RMSE: 72526.44
+* Difference between RMSE: 26871.64
+* Train $R^2$: 93%
+* Test $R^2$: 78%
+* Difference between $R^2$: 15% 
+
+First Model's Train and Test RMSE (M1), $R^2$:
+* Train RMSE: 23190.96
+* Test RMSE: 31341.55
+* Difference between RMSE: 8150.59
+* Train $R^2$: 93%
+* Test $R^2$: 83%
+* Difference between $R^2$: 10% 
+
+The Third Model's RMSE is much lower in terms of absolute values however the difference between the train and test sets for RMSE is the same as the RMSE difference between the train and test sets for the second model.
+
+Additionally, it has the largest decrease in $R^2$ of 19% when compared to the other models. (M1 has a decrease of 10% while M2 has a decrease of 15%.)
+
+# Fourth Model
+
+It seems that reducing the nodes does not do much to help with overfitting. In fact, in some cases it actually increases the severity of the overfitting like with the 3rd model. This can be seen through the drastic decrease of $R^2$. Additionally, with the second model (massive node reduction), the RMSE increase drastically when compared to the other 2 models. (This is because less nodes means that model is unable to pick up more complex patterns which results in the model's predictions being further off.)
+
+It should however be noted that the first model was only over fitting slightly with a decrease of 10% from train to test $R^2$. The RMSE for the first model for the test sets was also lower in absolute terms when compared to the other 2 models. Thus, another parameter should be experimented with instead like regularization. 
+
+RWeka does not directly have a regulariztion parameter but this can be emulated through the learn rate and momentum. Keeping a slower learn rate will make the model learn more 
+
+```{r}
+
+# These are the default values for MLP, except for h and l
+l <- 0.1
+m <- 0.5
+n <-500
+h <- '176' #
+
+tic()
+doParallel::registerDoParallel(cores = num_cores) 
+ANN_04 <- MLP(SalePrice ~ . , data = train_set,control= Weka_control(L = l, M = m, N = n, H = h))
+toc()
+
+```
+
+## Generate Predictions and Train Metrics
+
+```{r}
+
+ANN_04_train_pred <- predict(ANN_04, newdata = train_set)
+ANN_04_test_pred <- predict(ANN_04, newdata = test_set)
+
+ANN_04_tr_met <- mmetric(train_set$SalePrice,ANN_04_train_pred,metric = metrics_list)
+round_metrics(ANN_04_tr_met)
+
+
+```
+
+## Test Metrics
+
+```{r}
+
+ANN_04_te_met <- mmetric(test_set$SalePrice,ANN_04_test_pred,metric = metrics_list)
+
+round_metrics(ANN_04_te_met)
+
+```
+
+
+# Grid Search
+
+
+
+## AVNET
+
+We'll try AVNET with the decay parameters to see if the model performance can be improved. 
+
+```{r}
+
+train_set <- train_set[, !colnames(train_set) %in% c("GarageYrBlt")]
+test_set <- test_set[, !colnames(test_set) %in% c("GarageYrBlt")]
+
+train_predictor <- train_set[,-79] # SalePrice is col 80 in data-set
+train_outcome <- train_set [,79] 
+
+test_predictor <- test_set[,-79]
+test_outcome <- test_set[,79]
+
+
+ctrl <- trainControl(method = "repeatedcv",   # cross-validation
+                     number = 5,               # 5 folds
+                     repeats = 5,              # 5 repetitions
+                     savePredictions = "all"   # Save all predictions to help with diagnostics
+)
+
+avnnetGrid <- expand.grid(decay = c(.001,.005),
+size = c(1:6),
+bag = FALSE
+)
+
+tic()
+doParallel::registerDoParallel(cores = num_cores) 
+avnnet_fit <- train(train_predictor, train_outcome,
+method = "avNNet",
+tuneGrid = avnnetGrid,
+trControl = ctrl,
+#preProc = c("center", "scale"),
+trace = FALSE,
+metric= "RMSE",
+allowParallel=TRUE,
+maxit = 100)
+toc()
+
+
+```
+
+```{r}
+
+plot(avnnet_fit)
+
+predicted_outcome <- predict(avnnet_fit, newdata = test_predictor)
+# Evaluate performance
+metrics <- postResample(pred = predicted_outcome, obs = test_outcome)
+
+# Print the metrics
+print(metrics)
+
+```
+
+## Grid Search
+
+It's quite apparent based of the previous neural networks that there are several different hyper-parameters from the Learn and Momentum Rates to the number of hidden nodes. It would take an incredibly long time to experiment with all of these hyper-paramters to find a model that is generalizable. Some of the hyper-paramters cause the model to severely underfit while other hyper-paramters cause the model to overfit. 
+
+It's also very computationally expensive to experiment and select the model with the best hyper-parameters. Thus a more efficient method is required to find a model that generalizes well to new data and does not overfit or underfit.
+
+This method is Grid Search which we can use to find a model that generalizes well to new data. Grid-Search will search through various hyperparameter combinations, till it finds the best model based on a specified metric.
+
+```{r}
+
+
+train_set <- train_set[, !colnames(train_set) %in% c("GarageYrBlt")]
+test_set <- test_set[, !colnames(test_set) %in% c("GarageYrBlt")]
+
+train_predictor <- train_set[,-79] # SalePrice is col 80 in data-set
+train_outcome <- train_set [,79] 
+
+test_predictor <- test_set[,-79]
+test_outcome <- test_set[,79]
+# Define parameter grid
+learning_rates <- c(0.1, 0.01, 0.001)
+momentums <- c(0.2, 0.5, 0.9)
+hidden_layers <- c("5", "10,5", "20","32,64,83")  # Different layer configurations
+epochs <- c(100, 200)
+
+# Placeholder for results
+results <- data.frame(LearningRate = numeric(),
+                      Momentum = numeric(),
+                      HiddenLayers = character(),
+                      Epochs = numeric(),
+                      RMSE = numeric(),
+                      stringsAsFactors = TRUE)
+
+# Grid search
+tic()
+set.seed(123)  # Use this seed for consistency in future work
+for (lr in learning_rates) {
+  for (mom in momentums) {
+    for (hl in hidden_layers) {
+      for (epoch in epochs) {
+        
+        # Train model with current parameters
+        model <- MLP(train_outcome ~ ., 
+                     data = train_predictor, 
+                     control = Weka_control(L = lr, M = mom, H = hl, N = epoch))
+        
+        # Evaluate performance (e.g., RMSE)
+        predictions <- predict(model, test_set)
+        rmse <- sqrt(mean((predictions - test_outcome)^2))
+        
+        # Store results
+        results <- rbind(results, data.frame(
+          LearningRate = lr,
+          Momentum = mom,
+          HiddenLayers = hl,
+          Epochs = epoch,
+          RMSE = rmse
+        ))
+      }
+    }
+  }
+}
+
+# Find best parameters
+best_model <- results[which.min(results$RMSE), ]
+print(best_model)
+toc()
+
+# My old HP G10 Revolve Notebook Grid Search Train Time
+# Approximately 38 minutes, so maybe 37.87 min
+
+# My Amma's Dell Laptop Grid Search Train Time
+# Approximately 15 minutes, so maybe 14.75 min
+
+# My new HP Victus Grid Search Train Time:
+# Recorded right now, so I can say the exact time: 11.7425 minutes which rounds up to 12 minutes. Slightly faster than my mom's laptop.
+
+# It looks like R is utilizing the Nvidia RTX GeForce 3050 chip when training the model, but not to its full extent. Even then though, it's still much faster than my old laptop and slightly faster than my mom's laptop.
+
+# To get the true running time, we would have to run this grid search on all 3 machines multiple times.
+
+```
+
+```{r}
+
+# Extract best parameters
+best_lr <- best_model$LearningRate
+best_mom <- best_model$Momentum
+best_hl <- best_model$HiddenLayers
+best_epochs <- best_model$Epochs
+
+# Train the model with the best parameters
+final_model <- MLP(train_outcome ~ ., 
+                   data = train_set, 
+                   control = Weka_control(L = best_lr, M = best_mom, H = best_hl, N = best_epochs))
+
+final_predictions <- predict(final_model, test_set)
+
+# Calculate RMSE
+rmse <- sqrt(mean((final_predictions - test_outcome)^2))
+
+# Calculate R-squared
+sse <- sum((final_predictions - test_outcome)^2)  # Sum of Squared Errors
+sst <- sum((test_outcome - mean(test_outcome))^2) # Total Sum of Squares
+r_squared <- 1 - (sse / sst)
+
+# Calculate MAE
+mae <- mean(abs(final_predictions - test_outcome))
+
+# Print metrics
+cat("RMSE:", rmse, "\n")
+cat("R-squared:", r_squared, "\n")
+cat("MAE:", mae, "\n")
+
+```
+
+## Train Set
+
+```{r}
+
+train_predictions <- predict(final_model, train_set)
+
+# Calculate RMSE
+train_rmse <- sqrt(mean((train_predictions - train_outcome)^2))
+
+# Calculate R-squared
+train_sse <- sum((train_predictions - train_outcome)^2)  # Sum of Squared Errors
+train_sst <- sum((train_outcome - mean(train_outcome))^2) # Total Sum of Squares
+train_r_squared <- 1 - (train_sse / train_sst)
+
+# Calculate MAE
+train_mae <- mean(abs(train_predictions - train_outcome))
+
+# Print metrics
+cat("Training Set Metrics:\n")
+cat("RMSE:", train_rmse, "\n")
+cat("R-squared:", train_r_squared, "\n")
+cat("MAE:", train_mae, "\n")
+
+```
+
+```{r}
+
+comparison_metrics <- data.frame(
+  Dataset = c("Train", "Test"),
+  RMSE = c(train_rmse, rmse),
+  Rsquared = c(train_r_squared, r_squared),
+  MAE = c(train_mae, mae)
+)
+
+print(comparison_metrics)
+
+```
+
+# Visualizations
+
+## Scatter Plot: Actual vs. Predicted Prices (Test Set)
+
+```{r}
+
+# Scatter Plot: Actual vs. Predicted Prices (Test Set)
+scatter_plot <- ggplot(data = data.frame(Actual = test_outcome, Predicted = final_predictions), aes(x = Actual, y = Predicted)) +
+  geom_point(color = "blue", alpha = 0.6) +
+  geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") +
+  labs(title = "Scatter Plot: Actual vs. Predicted Prices (Test Set)",
+       x = "Actual Sale Prices",
+       y = "Predicted Sale Prices") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+
+plot(scatter_plot)
+
+```
+
+Scatter Plot:
+
+It Plots test_outcome (actual values) vs. final_predictions (predicted values). Visual feedback on how well the model's predictions align with actual values. A tight clustering around the diagonal line indicates a good fit.
+The diagonal red dashed line indicates perfect predictions. Points close to this line signify accurate predictions.
+
+## Comparison Table
+
+```{r}
+
+# Comparison Table Visualization
+
+comparison_metrics$Dataset <- factor(comparison_metrics$Dataset, levels = c("Train", "Test"))
+comparison_plot <- ggplot(comparison_metrics, aes(x = Dataset)) +
+  geom_col(aes(y = RMSE, fill = Dataset), position = position_dodge(width = 0.8), alpha = 0.8) +
+  geom_text(aes(y = RMSE, label = round(RMSE, 2)), vjust = -0.5, color = "black", size = 4) +
+  labs(title = "Comparison of RMSE by Dataset",
+       x = "Dataset",
+       y = "RMSE") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold")) +
+  scale_fill_manual(values = c("Train" = "skyblue", "Test" = "orange"))
+
+plot(comparison_plot)
+
+```
+
+Comparison Table Visualization:
+
+Displays the RMSE values for the train and test datasets as bar heights. It is an intuitive comparison of RMSE for training and testing datasets to check for overfitting or underfitting.
+It also annotates the bar heights with their corresponding RMSE values for clarity.
+
+
