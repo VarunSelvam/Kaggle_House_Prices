@@ -16,6 +16,6 @@ Grid Search with Hyperparamter Tuning was performed on serveral of these models.
 # File Info: 
 
 - **Machine Learning Project**: Contains the code and detailed explanations of findings.
-- ** Final Project**: R-Markdown file of Machine Learning Project.
+- **Final Project**: R-Markdown file of Machine Learning Project.
 - **ANN**: More indepth exploration of Neural Networks for predicting house prices in Ames, Iowa. Includes Grid Search with Hyperparameter Tuning.
 - **Visualization**: Shows a visualization of the target variable.
